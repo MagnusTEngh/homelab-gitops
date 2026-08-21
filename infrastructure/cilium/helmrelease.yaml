@@ -1,0 +1,84 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+  namespace: kube-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: cilium
+      version: "1.16.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cilium
+        namespace: flux-system
+      interval: 12h
+  values:
+    # Use eBPF-based kube-proxy replacement
+    kubeProxyReplacement: true
+
+    # Kubernetes API server address reachable from the nodes
+    k8sServiceHost: "API_SERVER_IP_OR_DNS"
+    k8sServicePort: 443
+
+    # Enable Hubble for observability
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+        replicas: 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      ui:
+        enabled: true
+        replicas: 1
+      metrics:
+        enabled:
+          - dns
+          - drop
+          - tcp
+          - flow
+          - port-distribution
+          - icmp
+          - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload
+
+    # IP Address Management
+    ipam:
+      mode: kubernetes
+
+    # Enable bandwidth manager for better performance
+    bandwidthManager:
+      enabled: true
+
+    # Enable host firewall
+    hostFirewall:
+      enabled: true
+
+    # Resource limits for the Cilium agent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+    # Operator configuration
+    operator:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+    # Enable transparent encryption with WireGuard
+    encryption:
+      enabled: true
+      type: wireguard
+      nodeEncryption: true
