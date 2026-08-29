@@ -19,8 +19,8 @@ spec:
     kubeProxyReplacement: true
 
     # Kubernetes API server address reachable from the nodes
-    k8sServiceHost: "API_SERVER_IP_OR_DNS"
-    k8sServicePort: 443
+    k8sServiceHost: localhost
+    k8sServicePort: 7445
 
     # Enable Hubble for observability
     hubble:
