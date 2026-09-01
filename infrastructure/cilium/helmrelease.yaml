@@ -8,56 +8,50 @@ spec:
   chart:
     spec:
       chart: cilium
-      version: "1.20.0"
+      version: "1.18.0"  # Use 1.18.0 (tested with Talos) or match your Helm repo
       sourceRef:
         kind: HelmRepository
         name: cilium
         namespace: flux-system
       interval: 12h
   values:
-    # Use eBPF-based kube-proxy replacement
-    kubeProxyReplacement: true
+    # --- Talos-Critical Settings ---
+    kubeProxyReplacement: strict  # Required for Talos (not just "true")
+    bpf:
+      hostRouting: true           # Required for Talos networking
+    hostFirewall:
+      enabled: false              # Disable unless explicitly needed
 
-    # Kubernetes API server address reachable from the nodes
-    k8sServiceHost: localhost
-    k8sServicePort: 7445
+    # --- API Server Configuration ---
+    k8sServiceHost: 192.168.0.188  # Your node IP
+    k8sServicePort: 6443          # Default Kubernetes API port
 
-    # Enable Hubble for observability
-    hubble:
-      enabled: true
-      relay:
-        enabled: true
-        replicas: 1
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-      ui:
-        enabled: true
-        replicas: 1
-      metrics:
-        enabled:
-          - dns
-          - drop
-          - tcp
-          - flow
-          - port-distribution
-          - icmp
-          - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload
-
-    # IP Address Management
+    # --- IPAM (Keep as-is) ---
     ipam:
       mode: kubernetes
 
-    # Enable bandwidth manager for better performance
-    bandwidthManager:
-      enabled: true
+    # --- Hubble (Optional) ---
+    hubble:
+      enabled: false  # Disable for now; enable later if needed
+      relay:
+        enabled: false
+      ui:
+        enabled: false
 
-    # Enable host firewall
-    hostFirewall:
-      enabled: true
+    # --- Security Context (Talos handles this) ---
+    # ❌ REMOVE securityContext.capabilities entirely.
+    # Talos automatically grants required capabilities to CNI pods.
+    # Explicitly setting them can cause "operation not permitted" errors.
 
-    # Resource limits for the Cilium agent
+    # --- Cilium Operator ---
+    operator:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+
+    # --- Resource Limits (Optional) ---
     resources:
       requests:
         cpu: 100m
@@ -66,44 +60,17 @@ spec:
         cpu: 1000m
         memory: 1Gi
 
-    # Operator configuration
-    operator:
-      replicas: 1
-      resources:
-        requests:
-          cpu: 100m
-          memory: 128Mi
-        limits:
-          cpu: 500m
-          memory: 256Mi
-
-    # Enable transparent encryption with WireGuard
-    encryption:
-      enabled: true
-      type: wireguard
-      nodeEncryption: true
-
-    # Suggested by chatgpt
-    securityContext:
-      capabilities:
-        ciliumAgent:
-         - CHOWN
-         - KILL
-         - NET_ADMIN
-         - NET_RAW
-         - IPC_LOCK
-         - SYS_ADMIN
-         - SYS_RESOURCE
-         - DAC_OVERRIDE
-         - FOWNER
-         - SETGID
-         - SETUID
-        cleanCiliumState:
-         - NET_ADMIN
-         - SYS_ADMIN
-          - SYS_RESOURCE
-
+    # --- Cgroup (Talos-Specific) ---
     cgroup:
       autoMount:
         enabled: false
       hostRoot: /sys/fs/cgroup
+
+    # --- Encryption (Disable for Single-Node) ---
+    encryption:
+      enabled: false  # WireGuard can cause issues in single-node; disable unless needed
+
+    # --- Rate Limiting (Optional) ---
+    k8sClientRateLimit:
+      qps: 10
+      burst: 20
