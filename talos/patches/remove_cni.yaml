@@ -1,0 +1,7 @@
+# This is to make it possible to add Cilium for networking
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true

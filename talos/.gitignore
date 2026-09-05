@@ -1,0 +1,15 @@
+# Talos secrets
+secrets.yaml
+talosconfig
+kubeconfig
+alternative-kubeconfig
+
+# Generated machine secrets
+*.secret.yaml
+
+# Temp
+cilium.yaml
+patches/cilium-patch.yaml
+controlplane.yaml
+worker.yaml
+rendered/*
