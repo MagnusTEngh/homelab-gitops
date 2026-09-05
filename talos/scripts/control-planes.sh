@@ -13,21 +13,21 @@ helm template \
     --namespace kube-system \
     --set ipam.mode=kubernetes \
     --set kubeProxyReplacement=true \
-    --set bpf.hostRouting=true \
-    --set hostFirewall.enabled=false \
-    --set k8sServiceHost="$NODE_IP" \
-    --set k8sServicePort=6443 \
+    --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+    --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
     --set cgroup.autoMount.enabled=false \
-    --set cgroup.hostRoot=/sys/fs/cgroup > cilium.yaml  # Removed securityContext.capabilities
+    --set cgroup.hostRoot=/sys/fs/cgroup \
+    --set k8sServiceHost=localhost \
+    --set k8sServicePort=7445 > cilium.yaml
 
 {
   cat <<'EOF'
-cluster:
-  inlineManifests:
-    - name: cilium
-      contents: |
+apiVersion: v1alpha1
+kind: KubeInlineManifestConfig
+name: cilium
+manifest: |
 EOF
-  sed 's/^/        /' cilium.yaml
+  sed 's/^/  /' cilium.yaml
 } > patches/cilium-patch.yaml
 
 talosctl machineconfig patch controlplane.yaml \
