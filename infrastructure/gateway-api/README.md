@@ -50,7 +50,7 @@ spec:
   selector:
     app: echo
   ports:
-    - port: 80
+    - port: 8080
       targetPort: 5678
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -63,7 +63,7 @@ spec:
   listeners:
     - name: http
       protocol: HTTP
-      port: 80
+      port: 8080
       allowedRoutes:
         namespaces:
           from: Same
@@ -79,7 +79,7 @@ spec:
   rules:
     - backendRefs:
         - name: echo
-          port: 80
+          port: 8080
 EOF
 
 
