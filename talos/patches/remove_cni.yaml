@@ -1,8 +1,15 @@
-# This is to make it possible to add Cilium for networking
-apiVersion: v1alpha1
-kind: KubeFlannelCNIConfig
-$patch: delete
----
-apiVersion: v1alpha1
-kind: KubeProxyConfig
-enabled: false
+# 1.14 version
+# apiVersion: v1alpha1
+# kind: KubeFlannelCNIConfig
+# $patch: delete
+# ---
+# apiVersion: v1alpha1
+# kind: KubeProxyConfig
+# enabled: false
+
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true

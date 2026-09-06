@@ -9,3 +9,19 @@ Make sure the following files are not committed:
 - secrets.yaml
 - kubeconfig
 
+## Scripts
+
+When changed:
+chmod +x control-planes.sh 
+
+Bootstrapping
+
+
+## Restarting
+
+talosctl reset \
+  --nodes IP-HERE \
+  --graceful=false \
+  --system-labels-to-wipe STATE \
+  --system-labels-to-wipe EPHEMERAL \
+  --reboot
