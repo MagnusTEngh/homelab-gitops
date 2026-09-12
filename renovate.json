@@ -21,10 +21,11 @@
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true
     },
-    {
-      "description": "Do not automerge anything",
-      "automerge": false
-    }
+  {
+  "description": ["Do not automerge anything"],
+  "matchPackageNames": ["*"],
+  "automerge": false
+}
   ],
 
   "flux": {
