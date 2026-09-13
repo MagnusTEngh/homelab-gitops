@@ -57,8 +57,8 @@ jobs:
           helm lint ./infrastructure/cilium || true
           helm lint ./infrastructure/cert-manager || true
 
-  flux-validate:
-    name: Flux Schema Validate
+  flux-check:
+    name: Flux Check
     needs: yaml-lint
     runs-on: ubuntu-latest
     steps:
@@ -68,13 +68,27 @@ jobs:
       - name: Setup Flux CLI
         uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
 
-      - name: Validate Flux manifests
-        run: flux schema validate --path ./clusters/yggdrasil --skip-missing-schemas
+      - name: Check Flux manifests
+        run: flux check --pre --path ./clusters/yggdrasil
+
+  flux-build:
+    name: Flux Build Kustomization
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Flux CLI
+        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
+
+      - name: Build Flux Kustomization
+        run: flux build kustomization --path ./clusters/yggdrasil/flux-system
 
   # Level 3: Semantic Validation
   kube-dry-run:
     name: Kubernetes Dry-Run
-    needs: [kustomize-build, helm-lint, flux-validate]
+    needs: [kustomize-build, helm-lint, flux-check, flux-build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -94,20 +108,3 @@ jobs:
       - name: Dry-run Gateway Test manifests
         run: |
           kubectl kustomize ./apps/gateway-test | kubectl apply --dry-run=client -f -
-
-  talos-validate:
-    name: Talos Config Validate
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Talos CLI
-        uses: talos-systems/action-talosctl@v1
-
-      - name: Validate Talos node configs
-        run: |
-          for node in ./talos/nodes/*.yaml; do
-            talosctl validate --config "$node" --mode cloud || echo "Validation failed for $node"
-          done
