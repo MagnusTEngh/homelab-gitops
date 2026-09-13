@@ -57,10 +57,43 @@ jobs:
           helm lint ./infrastructure/cilium || true
           helm lint ./infrastructure/cert-manager || true
 
+  # Level 2: Schema Validation
+  kubeconform:
+    name: Schema Validation (kubeconform)
+    needs: kustomize-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup kubeconform
+        uses: yannh/kubeconform-action@v1
+        with:
+          version: v0.6.0
+
+      - name: Validate manifests with kubeconform
+        run: |
+          kubeconform -strict -skip CustomResourceDefinition ./clusters/yggdrasil
+
+  pluto:
+    name: Deprecation Check (Pluto)
+    needs: kustomize-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Pluto
+        uses: fairwindsops/pluto@v5
+
+      - name: Check for deprecated API versions
+        run: |
+          pluto detect-files -d ./clusters/yggdrasil --output-format json --fail-on-deprecated --fail-on-removed
+
   # Level 3: Semantic Validation
   kube-validate:
     name: Kubernetes Manifest Validation
-    needs: [kustomize-build, helm-lint]
+    needs: [kustomize-build, helm-lint, kubeconform, pluto]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
