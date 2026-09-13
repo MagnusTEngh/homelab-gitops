@@ -1,0 +1,23 @@
+extends: default
+
+rules:
+  # Disable document start requirement (---)
+  document-start: disable
+
+  # Disable line length checks (many CRDs have long lines)
+  line-length: disable
+
+  # Disable trailing spaces (handled by pre-commit hooks)
+  trailing-spaces: disable
+
+  # Disable indentation checks (upstream CRDs have their own style)
+  indentation: disable
+
+  # Disable comments spacing checks
+  comments: disable
+
+  # Disable truthy checks (boolean style)
+  truthy: disable
+
+  # Disable colons spacing checks
+  colons: disable
