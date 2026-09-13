@@ -69,7 +69,7 @@ jobs:
         uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
 
       - name: Check Flux manifests
-        run: flux check --pre --path ./clusters/yggdrasil
+        run: flux check --pre
 
   flux-build:
     name: Flux Build Kustomization
@@ -83,7 +83,7 @@ jobs:
         uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
 
       - name: Build Flux Kustomization
-        run: flux build kustomization --path ./clusters/yggdrasil/flux-system
+        run: flux build kustomization flux-system --path ./clusters/yggdrasil
 
   # Level 3: Semantic Validation
   kube-dry-run:
