@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+
+  "dependencyDashboard": true,
+
+  "minimumReleaseAge": "14 days",
+  "internalChecksFilter": "strict",
+
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+
+  "packageRules": [
+    {
+      "description": "Require approval for major updates",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+  {
+  "description": ["Do not automerge anything"],
+  "matchPackageNames": ["*"],
+  "automerge": false
+}
+  ],
+
+  "flux": {
+    "managerFilePatterns": [
+      "/^((clusters|infrastructure|apps)/.+)\\.ya?ml$/"
+    ]
+  },
+
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^((clusters|infrastructure|apps)/.+)\\.ya?ml$/"
+    ]
+  },
+
+  "kustomize": {
+    "managerFilePatterns": [
+      "/^((clusters|infrastructure|apps)/.+)\\.ya?ml$/"
+    ]
+  }
+}
