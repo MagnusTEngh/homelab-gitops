@@ -67,9 +67,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Setup kubeconform
-        uses: yannh/kubeconform-action@v1
-        with:
-          version: v0.6.0
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
 
       - name: Validate manifests with kubeconform
         run: |
@@ -84,7 +83,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Setup Pluto
-        uses: fairwindsops/pluto@v5
+        run: |
+          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
 
       - name: Check for deprecated API versions
         run: |
