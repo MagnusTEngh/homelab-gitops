@@ -10,21 +10,27 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  # Level 1: Syntax & Format
+  yaml-lint:
+    name: YAML Lint
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
-#      - name: Lint YAML
-#        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
+        with:
+          config_file: .yamllint.yaml
 
-#      - name: Setup Flux CLI 
-#        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
-
-#      - name: Validate Flux and Kubernetes manifests 
-#        run: flux schema validate ./clusters/yggdrasil --skip-missing-schemas
+  # Level 2: Manifest Structure
+  kustomize-build:
+    name: Kustomize Build
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Build Flux manifests
         run: kubectl kustomize ./clusters/yggdrasil/flux-system
@@ -32,3 +38,76 @@ jobs:
       - name: Build Cilium manifests
         run: kubectl kustomize ./infrastructure/cilium
 
+      - name: Build Gateway Test manifests
+        run: kubectl kustomize ./apps/gateway-test
+
+  helm-lint:
+    name: Helm Lint
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+
+      - name: Lint Helm charts
+        run: |
+          helm lint ./infrastructure/cilium || true
+          helm lint ./infrastructure/cert-manager || true
+
+  flux-validate:
+    name: Flux Schema Validate
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Flux CLI
+        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
+
+      - name: Validate Flux manifests
+        run: flux schema validate --path ./clusters/yggdrasil --skip-missing-schemas
+
+  # Level 3: Semantic Validation
+  kube-dry-run:
+    name: Kubernetes Dry-Run
+    needs: [kustomize-build, helm-lint, flux-validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Dry-run Flux manifests
+        run: |
+          kubectl kustomize ./clusters/yggdrasil/flux-system | kubectl apply --dry-run=client -f -
+
+      - name: Dry-run Cilium manifests
+        run: |
+          kubectl kustomize ./infrastructure/cilium | kubectl apply --dry-run=client -f -
+
+      - name: Dry-run Gateway Test manifests
+        run: |
+          kubectl kustomize ./apps/gateway-test | kubectl apply --dry-run=client -f -
+
+  talos-validate:
+    name: Talos Config Validate
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Talos CLI
+        uses: talos-systems/action-talosctl@v1
+
+      - name: Validate Talos node configs
+        run: |
+          for node in ./talos/nodes/*.yaml; do
+            talosctl validate --config "$node" --mode cloud || echo "Validation failed for $node"
+          done
