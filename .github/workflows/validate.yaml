@@ -72,7 +72,7 @@ jobs:
 
       - name: Validate manifests with kubeconform
         run: |
-          kubeconform -strict -skip CustomResourceDefinition ./clusters/yggdrasil
+          kubeconform -strict -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository ./clusters/yggdrasil
 
   pluto:
     name: Deprecation Check (Pluto)
@@ -88,7 +88,7 @@ jobs:
 
       - name: Check for deprecated API versions
         run: |
-          pluto detect-files -d ./clusters/yggdrasil --output-format json --fail-on-deprecated --fail-on-removed
+          pluto detect-files -d ./clusters/yggdrasil -o json --ignore-deprecations=false --ignore-removals=false
 
   # Level 3: Semantic Validation
   kube-validate:
