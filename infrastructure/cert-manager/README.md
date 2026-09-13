@@ -38,8 +38,8 @@ EOF
 3. Check the certificate with kubectl get certificate -n cert-manager-test
 
 4. Check the TLS secret with kubectl get secret test-cert-tls -n cert-manager-test
- 
-5. Run this kubectl describe certificate test-cert -n cert-manager-test and check 
+
+5. Run this kubectl describe certificate test-cert -n cert-manager-test and check
     - Type:    Ready
     - Status:  True
     - Reason:  Ready
