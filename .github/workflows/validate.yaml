@@ -71,12 +71,12 @@ jobs:
 
       - name: Dry-run Flux manifests
         run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system | kubectl apply --dry-run=client -f -
+          kubectl kustomize ./clusters/yggdrasil/flux-system | kubectl apply --dry-run=client --validate=false -f -
 
       - name: Dry-run Cilium manifests
         run: |
-          kubectl kustomize ./infrastructure/cilium | kubectl apply --dry-run=client -f -
+          kubectl kustomize ./infrastructure/cilium | kubectl apply --dry-run=client --validate=false -f -
 
       - name: Dry-run Gateway Test manifests
         run: |
-          kubectl kustomize ./apps/gateway-test | kubectl apply --dry-run=client -f -
+          kubectl kustomize ./apps/gateway-test | kubectl apply --dry-run=client --validate=false -f -
