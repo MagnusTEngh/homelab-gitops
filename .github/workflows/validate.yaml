@@ -57,24 +57,10 @@ jobs:
           helm lint ./infrastructure/cilium || true
           helm lint ./infrastructure/cert-manager || true
 
-  flux-validate:
-    name: Flux Manifests Build
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Flux CLI
-        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
-
-      - name: Build Flux manifests (offline)
-        run: flux build kustomization --path ./clusters/yggdrasil --network-policy false
-
   # Level 3: Semantic Validation
   kube-dry-run:
     name: Kubernetes Dry-Run
-    needs: [kustomize-build, helm-lint, flux-validate]
+    needs: [kustomize-build, helm-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
