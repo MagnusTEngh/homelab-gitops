@@ -17,7 +17,7 @@ spec:
         - name: echo
           image: hashicorp/http-echo:1.0
           args:
-            - "-text=hello from gateway api"
+            - "-text=Hello world!"
           ports:
             - containerPort: 5678
 ---
