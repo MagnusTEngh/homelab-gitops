@@ -12,7 +12,7 @@ Make sure the following files are not committed:
 ## Scripts
 
 When changed:
-chmod +x control-planes.sh 
+chmod +x control-planes.sh
 
 Bootstrapping
 
