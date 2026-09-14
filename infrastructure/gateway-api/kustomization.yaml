@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - gateway-api-crds.yaml
+  - gateway-class.yaml
