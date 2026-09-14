@@ -8,4 +8,3 @@ kind: VolumeConfig
 name: EPHEMERAL
 provisioning:
   maxSize: 40GiB
-

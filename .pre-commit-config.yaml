@@ -1,0 +1,15 @@
+repos:
+  # Auto-fixers (safe)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: end-of-file-fixer      # Adds missing newline at EOF
+      - id: trailing-whitespace    # Removes trailing whitespace
+      - id: mixed-line-ending      # Normalizes line endings to LF
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.31.0
+    hooks:
+      - id: yamllint
+        args: [-c=.yamllint.yaml]

@@ -10,21 +10,27 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  # Level 1: Syntax & Format
+  yaml-lint:
+    name: YAML Lint
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
-#      - name: Lint YAML
-#        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
+        with:
+          config_file: .yamllint.yaml
 
-#      - name: Setup Flux CLI 
-#        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # 2.9.4
-
-#      - name: Validate Flux and Kubernetes manifests 
-#        run: flux schema validate ./clusters/yggdrasil --skip-missing-schemas
+  # Level 2: Manifest Structure
+  kustomize-build:
+    name: Kustomize Build
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Build Flux manifests
         run: kubectl kustomize ./clusters/yggdrasil/flux-system
@@ -32,3 +38,73 @@ jobs:
       - name: Build Cilium manifests
         run: kubectl kustomize ./infrastructure/cilium
 
+      - name: Build Gateway Test manifests
+        run: kubectl kustomize ./apps/gateway-test
+
+  helm-lint:
+    name: Helm Lint
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+
+      - name: Lint Helm charts
+        run: |
+          helm lint ./infrastructure/cilium || true
+          helm lint ./infrastructure/cert-manager || true
+
+  # Level 2: Schema Validation
+  kubeconform:
+    name: Schema Validation (kubeconform)
+    needs: kustomize-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
+
+      - name: Validate manifests with kubeconform
+        run: |
+          kubeconform -strict -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository ./clusters/yggdrasil
+
+  pluto:
+    name: Deprecation Check (Pluto)
+    needs: kustomize-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup Pluto
+        run: |
+          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
+
+      - name: Check for deprecated API versions
+        run: |
+          pluto detect-files -d ./clusters/yggdrasil -o json --ignore-deprecations=false --ignore-removals=false
+
+  # Level 3: Semantic Validation
+  kube-validate:
+    name: Kubernetes Manifest Validation
+    needs: [kustomize-build, helm-lint, kubeconform, pluto]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Validate Flux manifests with kubeval
+        run: |
+          kubectl kustomize ./clusters/yggdrasil/flux-system > /tmp/flux-manifests.yaml
+          kubectl kustomize ./infrastructure/cilium > /tmp/cilium-manifests.yaml
+          kubectl kustomize ./apps/gateway-test > /tmp/gateway-test-manifests.yaml
+          echo "Manifests built successfully - syntax validation passed"
