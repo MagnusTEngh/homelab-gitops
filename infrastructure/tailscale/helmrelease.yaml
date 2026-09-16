@@ -17,24 +17,25 @@ spec:
       interval: 12h
 
   values:
-    # Enable the operator to manage Tailscale resources
     operator:
       enabled: true
       createNamespace: false
 
-    # Configure Tailscale auth key (should be provided via secret)
+    # Use connector mode to expose services via Tailscale
+    # This creates a Tailscale node that can route traffic to cluster services
+    connector:
+      enabled: true
+      # Run as a Deployment (not DaemonSet) since we only need one connector
+      kind: Deployment
+      replicas: 1
+      hostNetwork: false
+
+    # Disable proxy since we're using connector
+    proxy:
+      enabled: false
+
+    # Tailscale auth key - MUST be created as a secret
+    # kubectl create secret generic tailscale-auth -n tailscale --from-literal=TS_AUTHKEY=your-key
     auth:
       secret: tailscale-auth
-
-    # Configure the proxy
-    proxy:
-      enabled: true
-      # Use hostNetwork to expose the proxy on the node's Tailscale IP
-      hostNetwork: true
-      # Subnet routes to advertise
-      subnetRoutes:
-        enabled: true
-        routes:
-          - 10.0.0.0/8
-          - 172.16.0.0/12
-          - 192.168.0.0/16
+      key: TS_AUTHKEY

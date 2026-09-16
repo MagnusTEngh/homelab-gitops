@@ -23,6 +23,20 @@ spec:
       hostNetwork:
         enabled: true
 
+    # Enable BGP for Tailscale integration
+    bgp:
+      enabled: false
+
+    # Enable LoadBalancer services for Gateway API
+    loadBalancer:
+      acceleration: native
+      mode: snat
+
+    # Enable NodePort range for Tailscale access
+    nodePort:
+      enabled: true
+      auto: true
+
     ipam:
       mode: kubernetes
 

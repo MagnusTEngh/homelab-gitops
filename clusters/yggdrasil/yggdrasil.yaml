@@ -72,6 +72,7 @@ metadata:
 spec:
   dependsOn:
     - name: cilium
+    - name: gateway-api
     - name: tailscale
   interval: 10m
   path: ./apps/gateway-test

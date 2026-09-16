@@ -33,10 +33,11 @@ spec:
     - port: 8080
       targetPort: 5678
 ---
+# Gateway that will be exposed via Tailscale
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: tailscale-gateway
+  name: gateway-test-gateway
   namespace: gateway-test
 spec:
   gatewayClassName: cilium
@@ -55,10 +56,10 @@ metadata:
   namespace: gateway-test
 spec:
   parentRefs:
-    - name: tailscale-gateway
+    - name: gateway-test-gateway
       namespace: gateway-test
   hostnames:
-    - "echo.tailscale"
+    - "echo.gateway-test"
   rules:
     - matches:
         - path:
