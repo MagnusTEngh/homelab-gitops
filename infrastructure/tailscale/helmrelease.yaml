@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tailscale-operator
+  namespace: tailscale
+spec:
+  interval: 30m
+
+  chart:
+    spec:
+      chart: tailscale-operator
+      version: "1.80.0"
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale
+        namespace: flux-system
+      interval: 12h
+
+  values:
+    # Enable the operator to manage Tailscale resources
+    operator:
+      enabled: true
+      createNamespace: false
+
+    # Configure Tailscale auth key (should be provided via secret)
+    auth:
+      secret: tailscale-auth
+
+    # Configure the proxy
+    proxy:
+      enabled: true
+      # Use hostNetwork to expose the proxy on the node's Tailscale IP
+      hostNetwork: true
+      # Subnet routes to advertise
+      subnetRoutes:
+        enabled: true
+        routes:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
