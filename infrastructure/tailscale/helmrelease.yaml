@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: tailscale-operator
+  name: tailscale
   namespace: tailscale
 spec:
   interval: 30m
@@ -21,21 +21,12 @@ spec:
       enabled: true
       createNamespace: false
 
-    # Use connector mode to expose services via Tailscale
-    # This creates a Tailscale node that can route traffic to cluster services
     connector:
       enabled: true
-      # Run as a Deployment (not DaemonSet) since we only need one connector
       kind: Deployment
       replicas: 1
-      hostNetwork: false
+      hostNetwork: true
 
-    # Disable proxy since we're using connector
-    proxy:
-      enabled: false
-
-    # Tailscale auth key - MUST be created as a secret
-    # kubectl create secret generic tailscale-auth -n tailscale --from-literal=TS_AUTHKEY=your-key
     auth:
       secret: tailscale-auth
       key: TS_AUTHKEY
