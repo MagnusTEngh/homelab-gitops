@@ -5,45 +5,114 @@ This enables access to your Cilium Gateway API services through Tailscale withou
 ## Architecture
 
 ```
-Your Machine (Tailnet) --> Tailscale Connector Pod --> Cilium Gateway API --> Your Services
+Your Machine (Tailnet) --> [Subnet Route via Connector] --> Gateway Service (ClusterIP) --> Your Services
 ```
 
-A single Tailscale Connector pod joins your Tailnet and exposes the Gateway API addresses.
+A Tailscale Connector pod joins your Tailnet and advertises your Kubernetes Service CIDR. This allows direct access to Gateway API services via their ClusterIP addresses from any device on your Tailnet.
 
 ## Setup
 
-### 1. Create Tailscale Auth Key
+### 1. Create OAuth Client in Tailscale
+
+1. Go to Tailscale admin console → OAuth clients
+2. Create a new OAuth client with tag: `tag:k8s-operator`
+3. Note the `clientId` and `clientSecret`
+
+### 2. Create Kubernetes Secrets
 
 ```bash
-# Generate a reusable auth key
-tailscale key generate --reusable
-
-# Create Kubernetes secret (replace with your actual key)
-kubectl create secret generic tailscale-auth -n tailscale \
-  --from-literal=TS_AUTHKEY=tskey-xxxxxxxxxxxxxxxxx
+# Create OAuth secret for the operator
+kubectl create secret generic operator-oauth -n tailscale \
+  --from-literal=clientId=<your-client-id> \
+  --from-literal=clientSecret=<your-client-secret>
 ```
 
-### 2. Get Connector IP
+### 3. Update Connector CIDR
 
-```bash
-kubectl get pods -n tailscale
-kubectl exec -n tailscale <connector-pod> -- tailscale status
+Edit `connector.yaml` and update the `advertiseRoutes` to match your Kubernetes Service CIDR:
+
+```yaml
+spec:
+  subnetRouter:
+    advertiseRoutes:
+      - "10.96.0.0/12"  # Default Kubernetes Service CIDR
 ```
 
-Note the Tailscale IP (e.g., `100.x.y.z`).
+If your cluster uses a different Service CIDR (check with `kubectl cluster-info dump | grep service-cluster-ip-range`), update accordingly.
 
-### 3. Access Services
+### 4. Access Services
 
-Access your Gateway API services at `http://100.x.y.z:80` or via MagicDNS if enabled.
+Once the Connector is running and the subnet route is accepted:
+
+1. Find your Gateway's ClusterIP:
+   ```bash
+   kubectl get gateway -n gateway-test -o jsonpath='{.status.addresses[0].value}'
+   ```
+
+2. Access the service from any device on your Tailnet:
+   ```bash
+   curl http://<gateway-cluster-ip>:80
+   ```
+
+   Or use MagicDNS if enabled:
+   ```bash
+   curl http://<gateway-cluster-ip>.your-tailnet.ts.net
+   ```
 
 ## Files
 
-- `helmrelease.yaml` - Tailscale operator with connector
+- `helmrelease.yaml` - Tailscale operator installation
 - `helmrepository.yaml` - Helm chart repository
+- `connector.yaml` - Connector custom resource (subnet router)
 - `namespace.yaml` - Namespace
 - `kustomization.yaml` - Kustomization
 
+## How It Works
+
+1. **Tailscale Operator** manages the Connector custom resource
+2. **Connector Pod** joins your Tailnet and advertises the Service CIDR route
+3. **Cilium Gateway API** creates a Service with a ClusterIP for each Gateway
+4. **Subnet Route** allows Tailnet devices to reach ClusterIPs directly
+5. Traffic flows: Your Device → Tailscale → Connector → Kubernetes Service (ClusterIP) → Gateway → Your App
+
+## Troubleshooting
+
+### Connector won't authenticate
+```bash
+kubectl logs -n tailscale -l app.kubernetes.io/name=tailscale-operator
+kubectl get secret -n tailscale operator-oauth
+```
+
+### Subnet route not appearing
+```bash
+kubectl get connector -n tailscale -o yaml
+kubectl logs -n tailscale -l app.kubernetes.io/name=tailscale-connector
+```
+
+Check Tailscale admin console → Machines → Find the Connector device → Check if subnet route is pending approval.
+
+### Can't access Gateway
+```bash
+# Check Gateway status
+kubectl get gateway -n gateway-test -o yaml
+
+# Check if Connector has the route
+kubectl exec -n tailscale <connector-pod> -- tailscale status
+```
+
+### Verify routing
+From a device on your Tailnet:
+```bash
+# Try to ping the Gateway ClusterIP
+tailscale ping <gateway-ip>
+
+# Check if route is active
+tailscale status
+```
+
 ## References
 
-- [Tailscale Kubernetes](https://tailscale.com/kb/installation/kubernetes/)
-- [Cilium Gateway API](https://docs.cilium.io/en/stable/network/gateway-api/)
+- [Tailscale Kubernetes Operator](https://tailscale.com/docs/kubernetes-operator)
+- [Tailscale Connector (Subnet Router)](https://tailscale.com/docs/kubernetes-operator/connector)
+- [Cilium Gateway API](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/)
+- [Tailscale OAuth Clients](https://tailscale.com/kb/oauth-clients)

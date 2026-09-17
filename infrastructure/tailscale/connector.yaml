@@ -1,0 +1,9 @@
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: gateway-connector
+  namespace: tailscale
+spec:
+  subnetRouter:
+    advertiseRoutes:
+      - "10.96.0.0/12"

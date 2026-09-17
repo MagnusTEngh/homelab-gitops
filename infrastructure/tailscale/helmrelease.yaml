@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: tailscale
+  name: tailscale-operator
   namespace: tailscale
 spec:
   interval: 30m
@@ -17,16 +17,5 @@ spec:
       interval: 12h
 
   values:
-    operator:
-      enabled: true
+    operatorConfig:
       createNamespace: false
-
-    connector:
-      enabled: true
-      kind: Deployment
-      replicas: 1
-      hostNetwork: true
-
-    auth:
-      secret: tailscale-auth
-      key: TS_AUTHKEY
