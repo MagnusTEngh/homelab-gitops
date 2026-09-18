@@ -14,7 +14,7 @@ Your Device (Tailnet)
   --> Your Application
 ```
 
-The Tailscale Connector advertises the Cilium LoadBalancer IP pool CIDR to your Tailnet. Cilium uses L2 announcements to make LoadBalancer Service IPs reachable on the LAN. The Gateway API creates a LoadBalancer Service that gets an IP from the pool, and Tailscale routes traffic to it.
+The Tailscale Connector advertises the dedicated Cilium LoadBalancer IP pool CIDR to your Tailnet. The pool is restricted to Cilium Gateway API Services using the `gateway.networking.k8s.io/gateway-name` and `gateway.networking.k8s.io/gateway-namespace` labels, so ordinary LoadBalancer Services cannot claim addresses from this advertised range. Cilium uses L2 announcements to make the assigned Gateway Service IPs reachable on the LAN.
 
 ## Setup
 
@@ -62,19 +62,23 @@ Find your Gateway's LoadBalancer IP:
 kubectl get svc -n gateway-test cilium-gateway-gateway-test-gateway -o jsonpath='{.spec.loadBalancerIP}'
 ```
 
-Access from any device on your Tailnet:
+The example HTTPRoute matches the hostname `echo.gateway-test`. Preserve that hostname in the request with `curl --resolve`:
 ```bash
-curl http://<loadbalancer-ip>:80
+curl --resolve echo.gateway-test:<loadbalancer-ip>:80 \
+  http://echo.gateway-test:<loadbalancer-ip>/
 ```
 
-Or use MagicDNS if enabled:
+You can also send the `Host` header explicitly:
 ```bash
-curl http://<loadbalancer-ip>.your-tailnet.ts.net
+curl -H 'Host: echo.gateway-test' \
+  http://<loadbalancer-ip>:80/
 ```
+
+MagicDNS does not automatically create a hostname for an arbitrary LoadBalancer IP. If a DNS name is desired, create a DNS record that resolves to the LoadBalancer IP and configure the HTTPRoute hostname to match it.
 
 ## How It Works
 
-1. **CiliumLoadBalancerIPPool** (`infrastructure/cilium/ip-pool.yaml`) - Defines IP range `192.168.1.240/29` for LoadBalancer Services
+1. **CiliumLoadBalancerIPPool** (`infrastructure/cilium/ip-pool.yaml`) - Defines IP range `192.168.1.240/29` for Cilium Gateway API Services only
 2. **CiliumL2AnnouncementPolicy** (`infrastructure/cilium/l2-announcement-policy.yaml`) - Enables L2 announcements for LoadBalancer IPs
 3. **Cilium HelmRelease** (`infrastructure/cilium/helmrelease.yaml`) - Has `l2announcements.enabled: true` and `externalIPs.enabled: true`
 4. **Gateway** (`apps/gateway-test/app.yaml`) - Creates a LoadBalancer Service that gets an IP from the pool
@@ -84,7 +88,7 @@ curl http://<loadbalancer-ip>.your-tailnet.ts.net
 Traffic flow:
 - Your Device → Tailscale → [Subnet Route] → LAN → [L2 Announcement] → LoadBalancer Service IP → Envoy → Gateway → Your App
 
-**Important:** Only IPs in `192.168.1.240/29` are accessible. Other cluster services are NOT exposed.
+**Important:** Only Gateway API Service IPs in `192.168.1.240/29` are advertised to the Tailnet. Other LoadBalancer Services and other cluster services are NOT exposed through this route.
 
 ## Talos-Specific Configuration
 
@@ -96,7 +100,7 @@ The namespace has `pod-security.kubernetes.io/enforce: privileged` label to allo
 | File | Purpose |
 |------|---------|
 | `infrastructure/cilium/helmrelease.yaml` | Cilium with L2 announcements enabled |
-| `infrastructure/cilium/ip-pool.yaml` | LoadBalancer IP pool (192.168.1.240/29) |
+| `infrastructure/cilium/ip-pool.yaml` | Gateway-only LoadBalancer IP pool (192.168.1.240/29) |
 | `infrastructure/cilium/l2-announcement-policy.yaml` | L2 announcement policy |
 | `infrastructure/cilium/kustomization.yaml` | Includes all Cilium resources |
 
@@ -132,8 +136,8 @@ Check Tailscale admin console → Machines → Find the `k8s-subnet-router` devi
 # Check Gateway status
 kubectl get gateway -n gateway-test -o yaml
 
-# Check the LoadBalancer Service
-kubectl get svc -n gateway-test cilium-gateway-gateway-test-gateway -o yaml
+# Check the LoadBalancer Service and its Gateway labels
+kubectl get svc -n gateway-test cilium-gateway-gateway-test-gateway --show-labels -o yaml
 
 # Check Cilium L2 announcements
 kubectl -n kube-system exec cilium-xxx -- cilium service list

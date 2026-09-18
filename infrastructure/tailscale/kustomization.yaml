@@ -6,4 +6,3 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - connector.yaml
-  - README.md
