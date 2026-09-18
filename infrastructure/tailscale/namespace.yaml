@@ -4,3 +4,4 @@ metadata:
   name: tailscale
   labels:
     name: tailscale
+    pod-security.kubernetes.io/enforce: privileged

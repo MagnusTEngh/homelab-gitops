@@ -21,6 +21,14 @@ spec:
     gatewayAPI:
       enabled: true
 
+    # Enable L2 announcements for LoadBalancer IPs
+    l2announcements:
+      enabled: true
+
+    # Enable externalIPs for Services
+    externalIPs:
+      enabled: true
+
     ipam:
       mode: kubernetes
 

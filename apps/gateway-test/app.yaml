@@ -34,14 +34,13 @@ spec:
       targetPort: 5678
 ---
 # Gateway that will be exposed via Tailscale
+# Cilium will create a LoadBalancer Service with an IP from the default pool (192.168.1.240/29)
+# L2 announcements will make this IP reachable on the LAN
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: gateway-test-gateway
   namespace: gateway-test
-  annotations:
-    # Use the dedicated IP pool for Gateway API
-    cilium.io/lb-ipam-pool-name: gateway-api-pool
 spec:
   gatewayClassName: cilium
   listeners:
@@ -51,11 +50,6 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
-  addresses:
-    - type: NamedAddress
-      value: gateway-api-pool
-    - type: IPAddress
-      value: 192.168.100.1
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
