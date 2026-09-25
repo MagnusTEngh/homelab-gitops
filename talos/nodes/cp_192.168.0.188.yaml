@@ -3,7 +3,6 @@ machine:
     disk: /dev/nvme0n1
   disks:
     - device: /dev/nvme0n1
-      wipeTable: true
       partitions:
         - mountpoint: /var/mnt/local-path-provisioner
           size: 322122547200 # 300 GiB
