@@ -1,0 +1,22 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+spec:
+  interval: 1h
+
+  chart:
+    spec:
+      chart: longhorn
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+        namespace: flux-system
+      interval: 12h
+
+  values:
+    defaultDataPath: /var/mnt/longhorn
+    persistence:
+      defaultDataPath: /var/mnt/longhorn
