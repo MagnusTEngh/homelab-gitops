@@ -1,6 +1,11 @@
 machine:
   install:
     disk: /dev/nvme0n1
+  disks:
+    - device: /dev/nvme0n1
+      partitions:
+        - mountpoint: /var/mnt/local-path-provisioner
+          size: 322122547200 # 300 GiB
 
 ---
 apiVersion: v1alpha1
