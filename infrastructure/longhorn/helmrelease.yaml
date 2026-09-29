@@ -5,6 +5,7 @@ metadata:
   namespace: longhorn-system
 spec:
   interval: 1h
+  timeout: 15m
 
   chart:
     spec:
@@ -16,7 +17,17 @@ spec:
         namespace: flux-system
       interval: 12h
 
+  install:
+    remediation:
+      retries: 3
+
   values:
-    defaultDataPath: /var/mnt/longhorn
-    persistence:
+    defaultSettings:
       defaultDataPath: /var/mnt/longhorn
+      defaultReplicaCount: 1
+
+    persistence:
+      defaultClassReplicaCount: 1
+
+    preUpgradeChecker:
+      jobEnabled: false

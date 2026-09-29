@@ -8,6 +8,7 @@ set -euo pipefail
 NODE_IP="192.168.0.188"
 
 TALOS_VERSION="v1.13.7"
+# must include siderolabs/iscsi-tools and siderolabs/util-linux-tools
 TALOS_SCHEMATIC="b8e8fbbe1b520989e6c52c8dc8303070cb42095997e76e812fa8892393e1d176"
 
 CILIUM_VERSION="1.18.0"
@@ -85,6 +86,7 @@ talosctl machineconfig patch controlplane.yaml \
 --patch @patches/remove_cni.yaml \
 --patch @patches/wakeonlan.yaml \
 --patch @patches/workload-on-controlplane.yaml \
+--patch @patches/longhorn.yaml \
 --output "$RENDERED_CONFIG"
 
 echo " Rendered: $RENDERED_CONFIG"
