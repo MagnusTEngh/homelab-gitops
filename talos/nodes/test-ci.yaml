@@ -1,6 +1,6 @@
 machine:
   install:
-    # QEMU uses virtio block devices (vda instead of nvme0n1)
+    # QEMU uses virtio block devices; this is the CI-safe disk path
     disk: /dev/vda
 
 ---
