@@ -12,6 +12,8 @@ on:
       - 'clusters/**'
       - 'infrastructure/**'
       - 'apps/**'
+      - 'talos/**'
+
 
 jobs:
   talos-flux-integration:
