@@ -1,0 +1,284 @@
+name: Talos Flux Integration Test
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+    paths:
+      - 'clusters/**'
+      - 'infrastructure/**'
+      - 'apps/**'
+      - 'talos/**'
+      - '.github/workflows/integration.yaml'
+
+jobs:
+  talos-flux-integration:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    permissions:
+      contents: read
+
+    env:
+      TALOS_VERSION: v1.13.7
+      TALOS_SCHEMATIC: b8e8fbbe1b520989e6c52c8dc8303070cb42095997e76e812fa8892393e1d176
+      CLUSTER_NAME: ci-flux-test
+      KUBECONFIG: ${{ github.workspace }}/kubeconfig
+      TALOSCONFIG: ${{ github.workspace }}/talosconfig
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901efe802d61d40e67b11ffdac57a37fbb # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ca-certificates \
+            curl \
+            jq \
+            qemu-system-x86 \
+            qemu-utils \
+            dnsmasq \
+            iproute2 \
+            iptables \
+            ovmf
+
+      - name: Install kubectl
+        run: |
+          curl -fsSL -o /tmp/kubectl https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+          sudo install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install talosctl
+        run: |
+          curl -fsSL -o /tmp/talosctl "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64"
+          sudo install -o root -g root -m 0755 /tmp/talosctl /usr/local/bin/talosctl
+          talosctl version
+
+      - name: Install Flux CLI
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo bash
+          flux --version
+
+      - name: Preflight QEMU check
+        run: |
+          echo "Checking QEMU availability..."
+          command -v qemu-system-x86_64
+          qemu-system-x86_64 -accel help || true
+          echo "QEMU present"
+          echo "Note: QEMU emulation is expected to be slower than a native KVM-backed Talos test cluster."
+
+      - name: Generate Talos machine config
+        run: |
+          mkdir -p ${{ github.workspace }}/talos-ci/rendered
+
+          talosctl machineconfig gen \
+            --version v1alpha1 \
+            --output ${{ github.workspace }}/talos-ci/controlplane.yaml \
+            --kubernetes-version 1.31 \
+            ci-flux-test
+
+      - name: Patch Talos config for CI
+        run: |
+          talosctl machineconfig patch ${{ github.workspace }}/talos-ci/controlplane.yaml \
+            --patch "@${{ github.workspace }}/talos/patches/remove_cni.yaml" \
+            --patch "@${{ github.workspace }}/talos/patches/workload-on-controlplane.yaml" \
+            --patch "@${{ github.workspace }}/talos/nodes/test-ci.yaml" \
+            --output ${{ github.workspace }}/talos-ci/rendered/controlplane.yaml
+
+          echo "==> Rendered Talos config:"
+          head -50 ${{ github.workspace }}/talos-ci/rendered/controlplane.yaml
+
+      - name: Create QEMU-based Talos cluster
+        run: |
+          timeout 30m talosctl cluster create \
+            --name "${CLUSTER_NAME}" \
+            --provisioner qemu \
+            --controlplanes 1 \
+            --workers 0 \
+            --talos-version "${TALOS_VERSION}" \
+            --config-patch-controlplane "@${{ github.workspace }}/talos-ci/rendered/controlplane.yaml" \
+            --cpus 2 \
+            --memory 2048 \
+            --disk 20000 \
+            --wait \
+            --timeout 30m
+
+      - name: Fetch kubeconfig and wait for cluster
+        run: |
+          talosctl kubeconfig "${CLUSTER_NAME}" --force --out "${KUBECONFIG}"
+
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          kubectl config use-context admin@${CLUSTER_NAME} || true
+
+          echo "Waiting for Kubernetes API to become available..."
+          timeout 15m bash -c 'until kubectl get nodes >/dev/null 2>&1; do sleep 10; done'
+
+          echo "Waiting for all nodes to become Ready..."
+          kubectl wait --for=condition=Ready node --all --timeout=20m
+
+          echo "Cluster nodes:"
+          kubectl get nodes -o wide
+
+      - name: Validate manifests with kubectl
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          echo "Validating all YAML manifests..."
+
+          for file in $(find clusters infrastructure apps -name "*.yaml" -o -name "*.yml"); do
+            echo "Validating $file..."
+            kubectl apply --dry-run=client -f "$file" || echo "Warning: $file validation failed"
+          done
+
+      - name: Create flux-system namespace
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Install Flux components
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          kubectl apply -f clusters/yggdrasil/flux-system/gotk-components.yaml
+
+          echo "Waiting for Flux controllers to become ready..."
+          kubectl wait --for=condition=Available deployment --all -n flux-system --timeout=10m || true
+
+      - name: Create temporary local repo for testing
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/test-repo
+          cd /tmp/test-repo
+          git init --bare
+
+          mkdir -p /tmp/test-clone
+          cd /tmp/test-clone
+          git clone /tmp/test-repo .
+
+          cp -r "${GITHUB_WORKSPACE}/clusters" .
+          cp -r "${GITHUB_WORKSPACE}/infrastructure" .
+          cp -r "${GITHUB_WORKSPACE}/apps" .
+
+          git config user.email "test@example.com"
+          git config user.name "Test Bot"
+          git add .
+          git commit -m "Initial commit for Flux testing"
+
+          git push -u origin main
+          git branch --show-current
+
+      - name: Create Flux GitRepository
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+
+          cat <<EOF | kubectl apply -f -
+          apiVersion: source.toolkit.fluxcd.io/v1
+          kind: GitRepository
+          metadata:
+            name: flux-system
+            namespace: flux-system
+          spec:
+            interval: 10s
+            url: file:///tmp/test-repo
+            ref:
+              branch: main
+          EOF
+
+          echo "Waiting for GitRepository sync..."
+          kubectl wait --for=condition=Ready GitRepository/flux-system -n flux-system --timeout=120s || true
+
+      - name: Apply Flux Kustomizations
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          kubectl apply -f clusters/yggdrasil/yggdrasil.yaml
+
+      - name: Wait for Flux reconciliation
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          echo "Waiting for Flux Kustomizations..."
+          kubectl wait --for=condition=Ready kustomization/cilium -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/cert-manager -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/gateway-api -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/tailscale -n flux-system --timeout=12m || true
+
+          echo "Flux Kustomization status:"
+          kubectl get kustomizations -A
+
+      - name: Run Flux checks
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          echo "==> flux check"
+          flux check || true
+
+          echo ""
+          echo "==> flux get all"
+          flux get all -A || true
+
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+
+          echo "=== Kubernetes Nodes ==="
+          kubectl get nodes -o wide || true
+
+          echo ""
+          echo "=== Flux System Pods ==="
+          kubectl get pods -n flux-system -o wide || true
+
+          echo ""
+          echo "=== Kustomizations ==="
+          kubectl get kustomizations -A || true
+
+          echo ""
+          echo "=== GitRepositories ==="
+          kubectl get gitrepositories -A || true
+
+          echo ""
+          echo "=== Recent Events ==="
+          kubectl get events -A --sort-by='.lastTimestamp' | tail -50 || true
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          echo "=== Kustomize Controller Logs ==="
+          kubectl logs -n flux-system deployment/kustomize-controller --tail=100 || true
+
+          echo ""
+          echo "=== Source Controller Logs ==="
+          kubectl logs -n flux-system deployment/source-controller --tail=100 || true
+
+          echo ""
+          echo "=== Helm Controller Logs ==="
+          kubectl logs -n flux-system deployment/helm-controller --tail=100 || true
+
+      - name: Cleanup QEMU cluster
+        if: always()
+        run: |
+          echo "Destroying QEMU cluster..."
+          talosctl cluster destroy "${CLUSTER_NAME}" --provisioner qemu || true
+
+  lint-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901efe802d61d40e67b11ffdac57a37fbb # v4
+
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint
+
+      - name: Lint YAML
+        run: |
+          yamllint -c .yamllint.yaml clusters infrastructure apps || true

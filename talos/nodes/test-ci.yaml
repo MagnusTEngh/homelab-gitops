@@ -1,0 +1,11 @@
+machine:
+  install:
+    # QEMU uses virtio block devices; this is the CI-safe disk path
+    disk: /dev/vda
+
+---
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  maxSize: 20GiB
