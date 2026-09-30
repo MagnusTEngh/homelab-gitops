@@ -1,4 +1,5 @@
 name: Talos Flux Integration Test
+
 on:
   pull_request:
     types:
@@ -13,7 +14,7 @@ on:
       - 'infrastructure/**'
       - 'apps/**'
       - 'talos/**'
-
+      - '.github/workflows/integration.yaml'
 
 jobs:
   talos-flux-integration:
@@ -33,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+        uses: actions/checkout@11bd71901efe802d61d40e67b11ffdac57a37fbb # v4
         with:
           fetch-depth: 0
 
@@ -68,11 +69,18 @@ jobs:
           curl -s https://fluxcd.io/install.sh | sudo bash
           flux --version
 
+      - name: Preflight QEMU check
+        run: |
+          echo "Checking QEMU availability..."
+          command -v qemu-system-x86_64
+          qemu-system-x86_64 -accel help || true
+          echo "QEMU present"
+          echo "Note: QEMU emulation is expected to be slower than a native KVM-backed Talos test cluster."
+
       - name: Generate Talos machine config
         run: |
           mkdir -p ${{ github.workspace }}/talos-ci/rendered
-          
-          # Generate base controlplane config
+
           talosctl machineconfig gen \
             --version v1alpha1 \
             --output ${{ github.workspace }}/talos-ci/controlplane.yaml \
@@ -81,56 +89,51 @@ jobs:
 
       - name: Patch Talos config for CI
         run: |
-          # Apply your repo's standard patches
           talosctl machineconfig patch ${{ github.workspace }}/talos-ci/controlplane.yaml \
             --patch "@${{ github.workspace }}/talos/patches/remove_cni.yaml" \
             --patch "@${{ github.workspace }}/talos/patches/workload-on-controlplane.yaml" \
             --patch "@${{ github.workspace }}/talos/nodes/test-ci.yaml" \
             --output ${{ github.workspace }}/talos-ci/rendered/controlplane.yaml
-          
+
           echo "==> Rendered Talos config:"
           head -50 ${{ github.workspace }}/talos-ci/rendered/controlplane.yaml
 
       - name: Create QEMU-based Talos cluster
         run: |
-          talosctl cluster create \
+          timeout 30m talosctl cluster create \
             --name "${CLUSTER_NAME}" \
             --provisioner qemu \
             --controlplanes 1 \
             --workers 0 \
             --talos-version "${TALOS_VERSION}" \
             --config-patch-controlplane "@${{ github.workspace }}/talos-ci/rendered/controlplane.yaml" \
-            --cpus 4 \
-            --memory 4096 \
-            --disk 20480 \
+            --cpus 2 \
+            --memory 2048 \
+            --disk 20000 \
             --wait \
             --timeout 30m
 
-      - name: Fetch kubeconfig
+      - name: Fetch kubeconfig and wait for cluster
         run: |
           talosctl kubeconfig "${CLUSTER_NAME}" --force --out "${KUBECONFIG}"
-          export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
-          echo "==> Waiting for Kubernetes API..."
-          until kubectl get nodes; do
-            echo "Waiting..."
-            sleep 5
-          done
-          
-          echo "==> Cluster nodes:"
-          kubectl get nodes -o wide
 
-      - name: Configure talosctl
-        run: |
-          export TALOSCONFIG="${{ env.TALOSCONFIG }}"
-          talosctl config endpoint 127.0.0.1
-          talosctl config node 127.0.0.1
-          talosctl version
+          export KUBECONFIG="${{ env.KUBECONFIG }}"
+          kubectl config use-context admin@${CLUSTER_NAME} || true
+
+          echo "Waiting for Kubernetes API to become available..."
+          timeout 15m bash -c 'until kubectl get nodes >/dev/null 2>&1; do sleep 10; done'
+
+          echo "Waiting for all nodes to become Ready..."
+          kubectl wait --for=condition=Ready node --all --timeout=20m
+
+          echo "Cluster nodes:"
+          kubectl get nodes -o wide
 
       - name: Validate manifests with kubectl
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
           echo "Validating all YAML manifests..."
+
           for file in $(find clusters infrastructure apps -name "*.yaml" -o -name "*.yml"); do
             echo "Validating $file..."
             kubectl apply --dry-run=client -f "$file" || echo "Warning: $file validation failed"
@@ -144,17 +147,15 @@ jobs:
       - name: Install Flux components
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          echo "Installing Flux components from repo config..."
           kubectl apply -f clusters/yggdrasil/flux-system/gotk-components.yaml
-          
-          # Wait for Flux controllers to be ready
-          kubectl wait --for=condition=ready pod \
-            -l app.kubernetes.io/part-of=flux \
-            -n flux-system \
-            --timeout=300s || echo "Some Flux pods still starting"
 
-      - name: Create local Git repository for testing
+          echo "Waiting for Flux controllers to become ready..."
+          kubectl wait --for=condition=Available deployment --all -n flux-system --timeout=10m || true
+
+      - name: Create temporary local repo for testing
         run: |
+          set -euo pipefail
+
           mkdir -p /tmp/test-repo
           cd /tmp/test-repo
           git init --bare
@@ -163,21 +164,22 @@ jobs:
           cd /tmp/test-clone
           git clone /tmp/test-repo .
 
-          # Copy your cluster configuration
-          cp -r ${{ github.workspace }}/clusters .
-          cp -r ${{ github.workspace }}/infrastructure .
-          cp -r ${{ github.workspace }}/apps .
+          cp -r "${GITHUB_WORKSPACE}/clusters" .
+          cp -r "${GITHUB_WORKSPACE}/infrastructure" .
+          cp -r "${GITHUB_WORKSPACE}/apps" .
 
           git config user.email "test@example.com"
           git config user.name "Test Bot"
           git add .
-          git commit -m "Initial commit for Flux testing" || true
-          git push -u origin main 2>&1 || git push -u origin HEAD:main || true
+          git commit -m "Initial commit for Flux testing"
+
+          git push -u origin main
+          git branch --show-current
 
       - name: Create Flux GitRepository
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
+
           cat <<EOF | kubectl apply -f -
           apiVersion: source.toolkit.fluxcd.io/v1
           kind: GitRepository
@@ -190,48 +192,42 @@ jobs:
             ref:
               branch: main
           EOF
-          
-          # Wait for initial sync
-          kubectl wait --for=condition=ready GitRepository/flux-system \
-            -n flux-system \
-            --timeout=60s || echo "GitRepository may still be syncing"
 
-      - name: Apply Kustomizations from yggdrasil config
+          echo "Waiting for GitRepository sync..."
+          kubectl wait --for=condition=Ready GitRepository/flux-system -n flux-system --timeout=120s || true
+
+      - name: Apply Flux Kustomizations
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
-          # Apply the yggdrasil kustomization manifest which defines all dependencies
           kubectl apply -f clusters/yggdrasil/yggdrasil.yaml
 
       - name: Wait for Flux reconciliation
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
-          echo "Waiting 20 seconds for reconciliation to start..."
-          sleep 20
-          
-          echo "==> Flux Kustomizations status:"
+          echo "Waiting for Flux Kustomizations..."
+          kubectl wait --for=condition=Ready kustomization/cilium -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/cert-manager -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/gateway-api -n flux-system --timeout=12m || true
+          kubectl wait --for=condition=Ready kustomization/tailscale -n flux-system --timeout=12m || true
+
+          echo "Flux Kustomization status:"
           kubectl get kustomizations -A
-          
-          echo "==> Checking cilium reconciliation..."
-          kubectl describe kustomization cilium -n flux-system || true
 
       - name: Run Flux checks
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
-          echo "==> Flux check:"
+          echo "==> flux check"
           flux check || true
-          
+
           echo ""
-          echo "==> Flux get all:"
+          echo "==> flux get all"
           flux get all -A || true
 
-      - name: Collect cluster diagnostics
+      - name: Collect diagnostics
         if: always()
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
+
           echo "=== Kubernetes Nodes ==="
           kubectl get nodes -o wide || true
 
@@ -240,33 +236,28 @@ jobs:
           kubectl get pods -n flux-system -o wide || true
 
           echo ""
-          echo "=== Kustomizations Status ==="
+          echo "=== Kustomizations ==="
           kubectl get kustomizations -A || true
 
           echo ""
-          echo "=== GitRepositories Status ==="
+          echo "=== GitRepositories ==="
           kubectl get gitrepositories -A || true
-
-          echo ""
-          echo "=== HelmReleases Status ==="
-          kubectl get helmreleases -A || echo "No HelmReleases found"
 
           echo ""
           echo "=== Recent Events ==="
           kubectl get events -A --sort-by='.lastTimestamp' | tail -50 || true
 
-      - name: Collect controller logs on failure
+      - name: Collect logs on failure
         if: failure()
         run: |
           export KUBECONFIG="${{ env.KUBECONFIG }}"
-          
           echo "=== Kustomize Controller Logs ==="
           kubectl logs -n flux-system deployment/kustomize-controller --tail=100 || true
-          
+
           echo ""
           echo "=== Source Controller Logs ==="
           kubectl logs -n flux-system deployment/source-controller --tail=100 || true
-          
+
           echo ""
           echo "=== Helm Controller Logs ==="
           kubectl logs -n flux-system deployment/helm-controller --tail=100 || true
@@ -275,11 +266,10 @@ jobs:
         if: always()
         run: |
           echo "Destroying QEMU cluster..."
-          talosctl cluster destroy "${CLUSTER_NAME}" --provisioner qemu || echo "Cleanup already done"
+          talosctl cluster destroy "${CLUSTER_NAME}" --provisioner qemu || true
 
   lint-yaml:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901efe802d61d40e67b11ffdac57a37fbb # v4
@@ -289,7 +279,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y yamllint
 
-      - name: Lint YAML files
+      - name: Lint YAML
         run: |
-          echo "Linting YAML files..."
-          yamllint -c .yamllint.yaml clusters infrastructure apps || echo "Review linting issues above"
+          yamllint -c .yamllint.yaml clusters infrastructure apps || true
