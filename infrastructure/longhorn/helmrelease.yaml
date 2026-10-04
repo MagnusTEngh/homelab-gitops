@@ -24,9 +24,11 @@ spec:
   values:
     defaultSettings:
       defaultDataPath: /var/mnt/longhorn
+      # single node; raise to 2-3 when more nodes are added
       defaultReplicaCount: 1
 
     persistence:
+      # single node; raise to 2-3 when more nodes are added
       defaultClassReplicaCount: 1
 
     preUpgradeChecker:

@@ -9,9 +9,11 @@ NODE_IP="192.168.0.188"
 
 TALOS_VERSION="v1.13.7"
 # must include siderolabs/iscsi-tools and siderolabs/util-linux-tools
+# Verify with: talosctl -n 192.168.0.188 get extensions
+# If missing, create new schematic at https://factory.talos.dev with both extensions
 TALOS_SCHEMATIC="b8e8fbbe1b520989e6c52c8dc8303070cb42095997e76e812fa8892393e1d176"
 
-CILIUM_VERSION="1.18.0"
+CILIUM_VERSION="1.20.1"
 
 TALOSCONFIG="$PWD/talosconfig"
 KUBECONFIG="$PWD/kubeconfig"
@@ -127,14 +129,14 @@ wait_for_talos
 # ==============================================================================
 
 echo
-# echo "==> Upgrading Talos to ${TALOS_VERSION}..."
+echo "==> Upgrading Talos to ${TALOS_VERSION}..."
 
-# echo " Installer:"
-# echo " ${TALOS_INSTALLER}"
+echo " Installer:"
+echo " ${TALOS_INSTALLER}"
 
-# talosctl upgrade \
-# --nodes "$NODE_IP" \
-# --image "$TALOS_INSTALLER"
+talosctl upgrade \
+--nodes "$NODE_IP" \
+--image "$TALOS_INSTALLER"
 
 # ==============================================================================
 # Wait for Talos to reboot after upgrade
@@ -146,7 +148,7 @@ wait_for_talos
 # Verify Talos version
 # ==============================================================================
 
-# wait_for_talos_version
+wait_for_talos_version
 
 echo
 echo "==> Talos version:"
@@ -196,6 +198,7 @@ helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
 
 helm repo update
 
+# While single node
 echo
 echo "==> Installing Cilium ${CILIUM_VERSION}..."
 
@@ -204,7 +207,7 @@ cilium \
 cilium/cilium \
 --version "$CILIUM_VERSION" \
 --namespace kube-system \
---set operator.replicas=1 \ # While single node
+--set operator.replicas=1 \
 --set ipam.mode=kubernetes \
 --set kubeProxyReplacement=true \
 --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
