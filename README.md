@@ -1,163 +1,43 @@
-# Homelab GitOps
+# Homelab Gitops
 
-## Verification
+## Goals
 
-### Flux
+### Role based access through tailscale
 
-Check that Flux is healthy and reconciled:
+Kubernetes platform where Tailscale provides secure identity-based access to the cluster, while Kubernetes RBAC controls what each user or group can do.
 
-```bash
-flux check
-```
+- Tailscale — secure access to the Kubernetes API without exposing it publicly; users can belong to multiple groups.
+- Kubernetes RBAC — maps groups to permissions, namespaces, and resources.
+- Flux — manages workload deployment from Git, allowing developers to deploy without broad Kubernetes write access.
+- Cilium — provides networking and network policies between workloads.
+- Gateway API — manages ingress and application routing.
 
-Expected output: All checks should show `OK` or `healthy`.
+#### Groups
 
-List all Kustomizations:
+- guests: access to a few services
+- friends: access to more services
+- family: access to all services
+- developers: access to deploy their own apps
+- admins: full access
 
-```bash
-flux get kustomizations -A
-```
+### Reproducable
 
-Expected output: All kustomizations should show `Ready` with `reconciled at` timestamp.
+Built using declarative configuration and when actions are required, such as bootstrapping or adding secrets, it should be done using scripts.
 
-List all HelmReleases:
+Manual steps should be described in setup.md
 
-```bash
-flux get helmreleases -A
-```
+verification steps to check cluster health should be described in verification.md
 
-Expected output: All releases should show `Ready` with latest revision deployed.
+### Playground
 
-### Kubernetes Cluster
+The cluster infrastructure should have enough features to allow experimentation with different technologies.
 
-Check cluster events for errors:
+As an example, storage options should include regular on disk, Longhorn and Garage.
 
-```bash
-kubectl get events -n kube-system --sort-by=.lastTimestamp
-```
+### Room for expansion 
 
-Expected output: No repeated errors or warnings.
+It should be possible to add nodes without too much hassle.
 
-Monitor pod status:
+### Low maintenance
 
-```bash
-watch -n 2 -d 'kubectl -n kube-system get pods -o wide'
-```
-
-Expected output: All pods should be `Running` or `Completed`.
-
-### Talos Linux
-
-Check Talos version and health:
-
-```bash
-talosctl version --nodes 192.168.0.188
-```
-
-Expected output: Shows the Talos version matching `TALOS_VERSION` in `talos/scripts/control-planes.sh`.
-
-Verify extensions are installed (required for Longhorn):
-
-```bash
-talosctl -n 192.168.0.188 get extensions
-```
-
-Expected output: Should list `siderolabs/iscsi-tools` and `siderolabs/util-linux-tools`. If missing, update `TALOS_SCHEMATIC` in `talos/scripts/control-planes.sh` with a schematic ID that includes both extensions from [factory.talos.dev](https://factory.talos.dev).
-
-Check kubelet extra mounts (required for Longhorn):
-
-```bash
-talosctl -n 192.168.0.188 get machineconfig -o yaml | grep -A5 extraMounts
-```
-
-Expected output: Should show `/var/mnt/longhorn` with `rshared` and `rw` options.
-
-### Cilium
-
-Check Cilium pod status:
-
-```bash
-kubectl -n kube-system get pods -l k8s-app=cilium
-```
-
-Expected output: All Cilium pods should be `Running`.
-
-Verify Cilium version matches `infrastructure/cilium/helmrelease.yaml`:
-
-```bash
-kubectl -n kube-system get pods -l k8s-app=cilium -o jsonpath='{.items[0].metadata.labels.version}'
-```
-
-Expected output: Should match the version in the HelmRelease (e.g., `1.20.2`).
-
-### Longhorn
-
-Check Longhorn pod status:
-
-```bash
-kubectl -n longhorn-system get pods
-```
-
-Expected output: All Longhorn pods (manager, driver-deployer, ui, etc.) should be `Running`.
-
-Verify Longhorn nodes are ready:
-
-```bash
-kubectl -n longhorn-system get nodes
-```
-
-Expected output: Node should show `Ready` with no errors.
-
-Check Longhorn volumes and settings:
-
-```bash
-kubectl -n longhorn-system get settings
-```
-
-Expected output: `default-data-path` should be `/var/mnt/longhorn`, `default-replica-count` should be `1` (single node).
-
-Verify Longhorn UI is accessible:
-
-```bash
-kubectl -n longhorn-system get svc longhorn-frontend
-```
-
-Expected output: Service should be `ClusterIP` with port `80`.
-
-### Gateway API
-
-Check Gateway API pod status:
-
-```bash
-kubectl -n gateway-api get pods
-```
-
-Expected output: All pods should be `Running`.
-
-### Cert-Manager
-
-Check cert-manager pod status:
-
-```bash
-kubectl -n cert-manager get pods
-```
-
-Expected output: All pods should be `Running`.
-
-### Tailscale
-
-Check Tailscale pod status:
-
-```bash
-kubectl -n tailscale get pods
-```
-
-Expected output: All pods should be `Running`.
-
-Verify Tailscale connectivity:
-
-```bash
-kubectl -n tailscale get svc
-```
-
-Expected output: Should show Tailscale services with external IPs.
+The Kubernetes homelab should be designed to be as low maintenance as possible.
