@@ -24,6 +24,10 @@ Kubernetes platform where Tailscale provides secure identity-based access to the
 
 Built using declarative configuration and when actions are required, such as bootstrapping or adding secrets, it should be done using scripts.
 
+Manual steps should be described in setup.md
+
+verification steps to check cluster health should be described in verification.md
+
 ### Playground
 
 The cluster infrastructure should have enough features to allow experimentation with different technologies.
