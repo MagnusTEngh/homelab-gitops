@@ -41,3 +41,9 @@ It should be possible to add nodes without too much hassle.
 ### Low maintenance
 
 The Kubernetes homelab should be designed to be as low maintenance as possible.
+
+### Nix for development and verification environment
+
+A nix flake is used to create the environment for interacting with the cluster, working on the repo and verification of functionality.
+
+The flake includes vscode, nvim and the essential tools for Talos and Kubernetes management. It is important that it is not bloated and is kept focused on the task.
