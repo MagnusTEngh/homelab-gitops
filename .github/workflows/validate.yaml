@@ -38,6 +38,9 @@ jobs:
       - name: Build Cilium manifests
         run: kubectl kustomize ./infrastructure/cilium
 
+      - name: Build Longhorn manifests
+        run: kubectl kustomize ./infrastructure/longhorn
+
       - name: Build Gateway Test manifests
         run: kubectl kustomize ./apps/gateway-test
 
@@ -106,5 +109,6 @@ jobs:
         run: |
           kubectl kustomize ./clusters/yggdrasil/flux-system > /tmp/flux-manifests.yaml
           kubectl kustomize ./infrastructure/cilium > /tmp/cilium-manifests.yaml
+          kubectl kustomize ./infrastructure/longhorn > /tmp/longhorn-manifests.yaml
           kubectl kustomize ./apps/gateway-test > /tmp/gateway-test-manifests.yaml
           echo "Manifests built successfully - syntax validation passed"
