@@ -4,9 +4,9 @@ Source of truth for node hardware. Config details (IPs, disk paths) live in `tal
 
 ## Nodes
 
-| Node | Config script | Role | IP | CPU | RAM | OS disk | Data disk(s) | NIC |
+| Node | machine model | Config script | Role | IP | CPU | RAM | OS disk | Data disk(s) | NIC |
 |------|----|------|----|-----|-----|---------|--------------|-----|
-| cp1 | control-plane | 192.168.0.188 | TODO | TODO | /dev/nvme0n1 | TODO | enp0s3 |
+| cp1 ! Lenovo thinkcentre mini | talos/scripts/control-planes.sh | control-plane | 192.168.0.188 | TODO | TODO | /dev/nvme0n1 | TODO | enp0s3 |
 
 ## Per-node details
 
@@ -18,10 +18,6 @@ Source of truth for node hardware. Config details (IPs, disk paths) live in `tal
 - **Disks:**
   - `/dev/nvme0n1`: TODO size, OS + ephemeral (EPHEMERAL maxSize 40GiB)
   - TODO: data disk, purpose (e.g. Longhorn)
-- **Network:** enp0s3, TODO speed, Wake-on-LAN enabled (`talos/patches/wakeonlan.yaml`)
-- **Talos:** schematic and extensions in `talos/scripts/control-planes.sh`
-- **BIOS/firmware notes:** TODO (e.g. virtualization, boot order, WoL setting)
-- **Config:** `talos/nodes/cp_192.168.0.188.yaml`
 
 ## Other equipment
 
@@ -31,7 +27,7 @@ Source of truth for node hardware. Config details (IPs, disk paths) live in `tal
 
 ## Adding a node
 
-1. Add a row to the table and a section above.
+1. Add a row to the table.
 2. Create `talos/nodes/<role>_<ip>.yaml`.
 3. Check the Talos schematic includes any extensions this hardware needs.
 4. Update single-node settings (replica counts, `operator.replicas`) noted in the manifests.
