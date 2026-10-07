@@ -5,6 +5,7 @@ Read these first, in order:
 1. [README.md](README.md): goal and overview of the repo
 2. [setup.md](setup.md): how to bootstrap Talos, Cilium and Flux
 3. [verification.md](verification.md): how to check that the cluster is healthy
+4. [hardware.md](hardware.md): information about the available hardware.
 
 If anything below conflicts with those files or the manifests, say so, explain the issue and ask for guidance.
 
