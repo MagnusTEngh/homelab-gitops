@@ -5,7 +5,7 @@ Source of truth for node hardware. Config details (IPs, disk paths) live in `tal
 ## Nodes
 
 | Node | machine model | Config script | Role | IP | CPU | RAM | OS disk | Data disk(s) | NIC |
-|------|----|------|----|-----|-----|---------|--------------|-----|
+|------|---|----|------|----|-----|-----|---------|--------------|-----|
 | cp1 ! Lenovo thinkcentre mini | talos/scripts/control-planes.sh | control-plane | 192.168.0.188 | TODO | TODO | /dev/nvme0n1 | TODO | enp0s3 |
 
 ## Per-node details
