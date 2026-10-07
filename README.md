@@ -47,3 +47,7 @@ The Kubernetes homelab should be designed to be as low maintenance as possible.
 A nix flake is used to create the environment for interacting with the cluster, working on the repo and verification of functionality.
 
 The flake includes vscode, nvim and the essential tools for Talos and Kubernetes management. It is important that it is not bloated and is kept focused on the task.
+
+### Backups in Jottacloud
+
+All backup solutions should end up in Jottacloud at the end of the day, and there should be a testable pipeline for restoring the cluster state from that backup.
