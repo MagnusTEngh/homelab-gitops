@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jottacloud-backup
+  namespace: jottacloud-backup
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rclone
+              image: rclone/rclone:v1.68.1
+              args:
+                - "sync"
+                - "/data"
+                - "jottacloud:homelab-backup"
+                - "--config=/config/rclone.conf"
+                - "--log-level=INFO"
+              volumeMounts:
+                - name: rclone-config
+                  mountPath: /config
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+          volumes:
+            - name: rclone-config
+              secret:
+                secretName: rclone-config
+            - name: data
+              hostPath:
+                path: /var/mnt/local-path-provisioner
+                type: Directory

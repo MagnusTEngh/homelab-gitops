@@ -34,7 +34,7 @@ The cluster infrastructure should have enough features to allow experimentation 
 
 As an example, storage options should include regular on disk, Longhorn and Garage.
 
-### Room for expansion 
+### Room for expansion
 
 It should be possible to add nodes without too much hassle.
 
