@@ -2,18 +2,23 @@
 
 Read these first, in order:
 
-1. [README.md](README.md): goal and overview of the repo
-2. [setup.md](setup.md): how to bootstrap Talos, Cilium and Flux
+1. [README.md](README.md): goals for the project
+2. [setup.md](setup.md): how to bootstrap Talos, Cilium and Flux, and manual steps required (such as adding secrets)
 3. [verification.md](verification.md): how to check that the cluster is healthy
 4. [hardware.md](hardware.md): information about the available hardware.
 
 If anything below conflicts with those files or the manifests, say so, explain the issue and ask for guidance.
 
+If something is too broad or open for interpretation, suggest ways to improve your instructions to better achieve the goals described.
+
+## Rules
+
+- Never directly edit the README.md, if something should be changed suggest through text only.
+
 ## Context
 
 - Talos Linux Kubernetes homelab on bare metal, managed by Flux CD (GitOps).
 - Currently a single control-plane node that also runs workloads. It **will be expanded**, so avoid designs that only work on one node.
-- Goal: the least specific configuration possible, to keep maintenance low.
 - This repo is the source of truth. Change the cluster through Git, not manual `kubectl` edits. If a manual step is unavoidable, add it to setup.md and also commit the declarative change.
 - Add steps to verify functionality in verification.md.
 
