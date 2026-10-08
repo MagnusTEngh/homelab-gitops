@@ -1,5 +1,7 @@
 # Verification
 
+This document describes verification steps primarily intended for humans with access to the cluster, but can be used by agents that have access as well.
+
 ### Flux
 
 Check that Flux is healthy and reconciled:
