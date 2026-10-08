@@ -28,6 +28,7 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 - `infrastructure/<name>/`: cluster components (cilium, cert-manager, gateway-api). Each has a `kustomization.yaml` plus a HelmRepository/HelmRelease, or plain manifests.
 - `apps/<name>/`: workloads (currently `gateway-test`).
 - `talos/`: machine config patches, node configs and bootstrap scripts.
+- `scripts/`: setup scripts and similar that are necessary to add secrets, bootstrapping for other systems than Talos and similar cases.
 - `.github/workflows/`: `validate.yaml` (PR checks) and `renovate.yml`.
 
 ## Conventions
