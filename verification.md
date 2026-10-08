@@ -2,6 +2,12 @@
 
 This document describes verification steps primarily intended for humans with access to the cluster, but can be used by agents that have access as well.
 
+## Verify the required tools are present and working
+talosctl version --client
+flux --version
+kubectl version --client
+kubeconform -v
+
 ### Flux
 
 Check that Flux is healthy and reconciled:
