@@ -1,0 +1,54 @@
+{
+  description = "Focused dev shell for homelab-gitops";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  };
+
+  outputs = { self, nixpkgs }:
+    let
+      forAllSystems = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ];
+    in
+    {
+      devShells = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              talosctl
+              kubectl
+              fluxcd
+              kustomize
+              kubeconform
+              helm
+              yamllint
+              shellcheck
+              pre-commit
+              sops
+              age
+              cilium-cli
+              tailscale
+              rclone
+              jq
+              yq-go
+              vscode
+              neovim
+            ];
+
+            shellHook = ''
+              export SECRETS_REPO="${SECRETS_REPO:-../homelab-secrets}"
+              if [ -f "$HOME/.config/sops/age/keys.txt" ]; then
+                export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
+              fi
+
+              echo "SECRETS_REPO=${SECRETS_REPO}"
+              if [ -n "${SOPS_AGE_KEY_FILE:-}" ]; then
+                echo "SOPS_AGE_KEY_FILE=${SOPS_AGE_KEY_FILE}"
+              fi
+            '';
+          };
+        });
+    };
+}
