@@ -28,6 +28,7 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 - `infrastructure/<name>/`: cluster components (cilium, cert-manager, gateway-api). Each has a `kustomization.yaml` plus a HelmRepository/HelmRelease, or plain manifests.
 - `apps/<name>/`: workloads (currently `gateway-test`).
 - `talos/`: machine config patches, node configs and bootstrap scripts.
+- `scripts/`: setup scripts and similar that are necessary to add secrets, bootstrapping for other systems than Talos and similar cases.
 - `.github/workflows/`: `validate.yaml` (PR checks) and `renovate.yml`.
 
 ## Conventions
@@ -54,6 +55,18 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 - Don't add replicas, anti-affinity or strict PodDisruptionBudgets just for HA, but don't hard-code single-node assumptions either.
 - If a setting is single-node only (e.g. `operator.replicas: 1`, Longhorn replica count 1), comment it so it's easy to find when nodes are added.
 - Keep resource requests and limits modest. This is a homelab.
+
+## Agent access
+
+- You only edit files in this repo. You have no access to the cluster, Talos nodes, tailnet or the secrets repo. Never run kubectl, talosctl, flux or tailscale against a live system and never ask for secret values.
+
+- Secrets are never committed, encrypted or not. They live in a separate repo available only in the human's local dev environment. Reference secrets by name only (existingSecret, secretRef, valuesFrom) and list each in docs/secrets.md (name, namespace, keys, consumer path).
+
+- Anything requiring cluster, node, tailnet or secrets-repo access is a manual step: put it in setup.md as numbered commands with expected output. Anything that checks cluster state goes in the feature's chapter in verification.md.
+
+- Verify your own work offline only (kubectl kustomize, yamllint, kubeconform, helm template, talosctl validate, shellcheck).
+
+- Finish every task with: offline check results, then a "Human steps" list with exact commands and what a pass looks like. Do not start another step.
 
 ## Making changes
 
