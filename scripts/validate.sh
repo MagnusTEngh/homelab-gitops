@@ -125,10 +125,14 @@ check_age() {
   hits="$(git grep -nEI \
     -e 'AGE-SECRET-KEY-1[A-Z0-9]{58}' \
     -e '-----BEGIN ([A-Z]+ )?PRIVATE KEY-----' || true)"
-  [ -z "$hits" ] || fail "key material found:"${'\n'}"$hits"
+  if [ -n "$hits" ]; then
+    fail "key material found:\n$hits"
+  fi
 
-  hits="$(git ls-files |\n    grep -Ei '(^|/)(talosconfig|kubeconfig|secrets\.ya?ml|keys\.txt)$|\.(age|agekey)$' || true)"
-  [ -z "$hits" ] || fail "secret-looking files tracked:"${'\n'}"$hits"
+  hits="$(git ls-files | grep -Ei '(^|/)(talosconfig|kubeconfig|secrets\.ya?ml|keys\.txt)$|\.(age|agekey)$' || true)"
+  if [ -n "$hits" ]; then
+    fail "secret-looking files tracked:\n$hits"
+  fi
 }
 
 check_shell() {
