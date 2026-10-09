@@ -77,3 +77,4 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 5. Add steps to verify functionality in verification.md. Make a separate chapter for each feature.
 6. Add steps describing required manual setup steps the setup.md.
 7. Don't invent versions, IPs or values. Read them from the repo.
+8. If you have changes to propose, make a PR.
