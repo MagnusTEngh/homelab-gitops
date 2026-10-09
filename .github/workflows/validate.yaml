@@ -90,39 +90,39 @@ jobs:
 
       - name: Validate Flux manifests with kubeconform
         run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Cilium manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Cert-Manager manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/cert-manager | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/cert-manager | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Gateway API manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/{{.Version}}/config/crd/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Longhorn manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/longhorn | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/longhorn | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Local Path Provisioner manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/local-path-provisioner | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/local-path-provisioner | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Tailscale manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/tailscale | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/tailscale | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Jottacloud Backup manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/jottacloud-backup | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/jottacloud-backup | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
       - name: Validate Gateway Test manifests with kubeconform
         run: |
-          kubectl kustomize ./apps/gateway-test | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/{{.Version}}/config/crd/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./apps/gateway-test | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
 
   # Level 2: Shell Script Validation
   shellcheck:
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Setup ShellCheck
-        uses: ludeeus/action-shellcheck@3a3a2453933411c4e3176433993c6454849a339d # 2.0.0
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
 
       - name: Lint shell scripts in talos
         run: |
