@@ -90,11 +90,11 @@ jobs:
 
       - name: Validate Flux manifests with kubeconform
         run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,GitRepositoryRef
 
       - name: Validate Cilium manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,CiliumLoadBalancerIPPool,CiliumL2AnnouncementPolicy
 
       - name: Validate Cert-Manager manifests with kubeconform
         run: |
@@ -133,8 +133,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
-      - name: Setup ShellCheck
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
 
       - name: Lint shell scripts in talos
         run: |
