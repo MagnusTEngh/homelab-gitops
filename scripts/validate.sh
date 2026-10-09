@@ -84,10 +84,14 @@ check_schema() {
   need kubeconform || return 0
   ensure_built
 
-  find "$BUILD_DIR" -name '*.yaml' -type f -print0 |\n    xargs -0 -r kubeconform -strict -summary -ignore-missing-schemas \
+  local file
+  while IFS= read -r -d '' file; do
+    kubeconform -strict -summary -ignore-missing-schemas \
       -kubernetes-version "$K8S_VERSION" \
       -schema-location default \
-      -schema-location "$CRD_CATALOG" || fail "kubeconform"
+      -schema-location "$CRD_CATALOG" \
+      "$file" || fail "kubeconform: $file"
+  done < <(find "$BUILD_DIR" -name '*.yaml' -type f -print0)
 }
 
 check_secrets() {
