@@ -29,9 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y wget
-          wget -qO /tmp/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
-          chmod +x /tmp/yq
-          mv /tmp/yq "$HOME/bin/"
+          mkdir -p "$HOME/bin"
+          wget -qO "$HOME/bin/yq" https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x "$HOME/bin/yq"
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install kubeconform
@@ -40,6 +40,7 @@ jobs:
           mkdir -p "$HOME/bin"
           curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz -o /tmp/kubeconform.tar.gz
           tar -xz -C "$HOME/bin" -f /tmp/kubeconform.tar.gz
+          chmod +x "$HOME/bin/kubeconform"
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install pluto
@@ -48,6 +49,7 @@ jobs:
           mkdir -p "$HOME/bin"
           curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz -o /tmp/pluto.tar.gz
           tar -xz -C "$HOME/bin" -f /tmp/pluto.tar.gz
+          chmod +x "$HOME/bin/pluto"
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install shellcheck
