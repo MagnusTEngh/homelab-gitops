@@ -1,114 +1,66 @@
----
-name: Validate
+name: validate
 
 on:
   pull_request:
-    branches:
-    - main
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # Level 1: Syntax & Format
-  yaml-lint:
-    name: YAML Lint
+  validate:
+    name: validate (${{ matrix.check }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [yaml, build, schema, secrets, age, shell, pluto]
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      - name: Lint YAML
-        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
-        with:
-          config_file: .yamllint.yaml
-
-  # Level 2: Manifest Structure
-  kustomize-build:
-    name: Kustomize Build
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Build Flux manifests
-        run: kubectl kustomize ./clusters/yggdrasil/flux-system
-
-      - name: Build Cilium manifests
-        run: kubectl kustomize ./infrastructure/cilium
-
-      - name: Build Longhorn manifests
-        run: kubectl kustomize ./infrastructure/longhorn
-
-      - name: Build Gateway Test manifests
-        run: kubectl kustomize ./apps/gateway-test
-
-  helm-lint:
-    name: Helm Lint
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Helm
-        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3
-
-      - name: Lint Helm charts
+      - name: Install yq
+        if: matrix.check == 'secrets' || matrix.check == 'schema'
         run: |
-          helm lint ./infrastructure/cilium || true
-          helm lint ./infrastructure/cert-manager || true
+          sudo apt-get update
+          sudo apt-get install -y wget
+          mkdir -p "$HOME/bin"
+          wget -qO "$HOME/bin/yq" https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x "$HOME/bin/yq"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
-  # Level 2: Schema Validation
-  kubeconform:
-    name: Schema Validation (kubeconform)
-    needs: kustomize-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup kubeconform
+      - name: Install kubeconform
+        if: matrix.check == 'schema'
         run: |
-          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
+          mkdir -p "$HOME/bin"
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz -o /tmp/kubeconform.tar.gz
+          tar -xz -C "$HOME/bin" -f /tmp/kubeconform.tar.gz
+          chmod +x "$HOME/bin/kubeconform"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
-      - name: Validate manifests with kubeconform
+      - name: Install pluto
+        if: matrix.check == 'pluto'
         run: |
-          kubeconform -strict -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository ./clusters/yggdrasil
+          mkdir -p "$HOME/bin"
+          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz -o /tmp/pluto.tar.gz
+          tar -xz -C "$HOME/bin" -f /tmp/pluto.tar.gz
+          chmod +x "$HOME/bin/pluto"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
-  pluto:
-    name: Deprecation Check (Pluto)
-    needs: kustomize-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Pluto
+      - name: Install shellcheck
+        if: matrix.check == 'shell'
         run: |
-          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
-
-      - name: Check for deprecated API versions
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+      - name: Install yamllint
+        if: matrix.check == 'yaml'
         run: |
-          pluto detect-files -d ./clusters/yggdrasil -o json --ignore-deprecations=false --ignore-removals=false
+          pip install yamllint==1.31.0
 
-  # Level 3: Semantic Validation
-  kube-validate:
-    name: Kubernetes Manifest Validation
-    needs: [kustomize-build, helm-lint, kubeconform, pluto]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@901a10e89ea615cf61f57ac05cecdf23e7de06d8 # v3
-
-      - name: Validate Flux manifests with kubeval
-        run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system > /tmp/flux-manifests.yaml
-          kubectl kustomize ./infrastructure/cilium > /tmp/cilium-manifests.yaml
-          kubectl kustomize ./infrastructure/longhorn > /tmp/longhorn-manifests.yaml
-          kubectl kustomize ./apps/gateway-test > /tmp/gateway-test-manifests.yaml
-          echo "Manifests built successfully - syntax validation passed"
+      - name: Run check
+        run: ./scripts/validate.sh ${{ matrix.check }}
