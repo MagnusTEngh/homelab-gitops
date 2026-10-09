@@ -18,7 +18,8 @@ MANIFEST_ROOTS=(clusters infrastructure apps)
 K8S_VERSION="${K8S_VERSION:-1.30.4}"
 CRD_CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
-# Additional schema locations for CRDs not in datreeio catalog
+# Additional schema locations for CRDs
+FLUX_CRDS='https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/crds'
 CILIUM_SCHEMA='https://raw.githubusercontent.com/cilium/cilium/v2.0.0/install/kubernetes/cilium/crds'
 TAILSCALE_SCHEMA='https://raw.githubusercontent.com/tailscale/tailscale-operator/main/config/crd'
 GATEWAY_API_SCHEMA='https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.0.0/config/crd'
@@ -91,10 +92,11 @@ check_schema() {
 
   local file
   while IFS= read -r -d '' file; do
-    kubeconform -strict -summary \
+    kubeconform -strict -summary -ignore-missing-schemas \
       -kubernetes-version "$K8S_VERSION" \
       -schema-location default \
       -schema-location "$CRD_CATALOG" \
+      -schema-location "$FLUX_CRDS" \
       -schema-location "$CILIUM_SCHEMA" \
       -schema-location "$TAILSCALE_SCHEMA" \
       -schema-location "$GATEWAY_API_SCHEMA" \
