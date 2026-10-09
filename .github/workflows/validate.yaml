@@ -22,31 +22,43 @@ jobs:
         check: [yaml, build, schema, secrets, age, shell, pluto]
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install yq
         if: matrix.check == 'secrets' || matrix.check == 'schema'
         run: |
           sudo apt-get update
           sudo apt-get install -y wget
-          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
-          chmod +x /usr/local/bin/yq
+          wget -qO /tmp/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x /tmp/yq
+          mv /tmp/yq "$HOME/bin/"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install kubeconform
         if: matrix.check == 'schema'
         run: |
-          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
+          mkdir -p "$HOME/bin"
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz -o /tmp/kubeconform.tar.gz
+          tar -xz -C "$HOME/bin" -f /tmp/kubeconform.tar.gz
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install pluto
         if: matrix.check == 'pluto'
         run: |
-          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
+          mkdir -p "$HOME/bin"
+          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz -o /tmp/pluto.tar.gz
+          tar -xz -C "$HOME/bin" -f /tmp/pluto.tar.gz
+          echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install shellcheck
         if: matrix.check == 'shell'
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+      - name: Install yamllint
+        if: matrix.check == 'yaml'
+        run: |
+          pip install yamllint==1.31.0
 
       - name: Run check
         run: ./scripts/validate.sh ${{ matrix.check }}

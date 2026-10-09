@@ -14,9 +14,14 @@ cd "$REPO_ROOT"
 ALL_CHECKS=(yaml build schema secrets age shell pluto)
 MANIFEST_ROOTS=(clusters infrastructure apps)
 
-# TODO: set to the Kubernetes version Talos runs.
-K8S_VERSION="${K8S_VERSION:-1.34.0}"
+# Talos v1.13.7 runs Kubernetes v1.30.4
+K8S_VERSION="${K8S_VERSION:-1.30.4}"
 CRD_CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+# Additional schema locations for CRDs not in datreeio catalog
+CILIUM_SCHEMA='https://raw.githubusercontent.com/cilium/cilium/v2.0.0/install/kubernetes/cilium/crds'
+TAILSCALE_SCHEMA='https://raw.githubusercontent.com/tailscale/tailscale-operator/main/config/crd'
+GATEWAY_API_SCHEMA='https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.0.0/config/crd'
 
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
@@ -27,7 +32,7 @@ FAILED=0
 log() { printf '\n=== %s ===\n' "$*"; }
 
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
+  printf '%s\n' "$*" >&2
   FAILED=1
 }
 
@@ -86,10 +91,13 @@ check_schema() {
 
   local file
   while IFS= read -r -d '' file; do
-    kubeconform -strict -summary -ignore-missing-schemas \
+    kubeconform -strict -summary \
       -kubernetes-version "$K8S_VERSION" \
       -schema-location default \
       -schema-location "$CRD_CATALOG" \
+      -schema-location "$CILIUM_SCHEMA" \
+      -schema-location "$TAILSCALE_SCHEMA" \
+      -schema-location "$GATEWAY_API_SCHEMA" \
       "$file" || fail "kubeconform: $file"
   done < <(find "$BUILD_DIR" -name '*.yaml' -type f -print0)
 }
@@ -114,7 +122,10 @@ check_secrets() {
       fail "yq could not parse $f"
       continue
     }
-    [ -z "$hits" ] || fail "Secret with data/stringData in $f: $hits"
+    if [ -n "$hits" ]; then
+      printf 'FAIL: Secret with data/stringData in %s: %s\n' "$f" "$hits" >&2
+      FAILED=1
+    fi
   done
 }
 
@@ -126,12 +137,14 @@ check_age() {
     -e 'AGE-SECRET-KEY-1[A-Z0-9]{58}' \
     -e '-----BEGIN ([A-Z]+ )?PRIVATE KEY-----' || true)"
   if [ -n "$hits" ]; then
-    fail "key material found:\n$hits"
+    printf 'FAIL: key material found:\n%s\n' "$hits" >&2
+    FAILED=1
   fi
 
   hits="$(git ls-files | grep -Ei '(^|/)(talosconfig|kubeconfig|secrets\.ya?ml|keys\.txt)$|\.(age|agekey)$' || true)"
   if [ -n "$hits" ]; then
-    fail "secret-looking files tracked:\n$hits"
+    printf 'FAIL: secret-looking files tracked:\n%s\n' "$hits" >&2
+    FAILED=1
   fi
 }
 

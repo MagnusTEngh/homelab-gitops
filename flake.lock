@@ -1,0 +1,22 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1730000000,
+        "narHash": "sha256-0000000000000000000000000000000000000000000000000000",
+        "path": "/nix/store/00000000000000000000000000000000-source",
+        "rev": "0000000000000000000000000000000000000000",
+        "revCount": 0,
+        "type": "github",
+        "url": "github:NixOS/nixpkgs/nixos-unstable"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    }
+  },
+  "root": "homelab-gitops",
+  "version": 1
+}

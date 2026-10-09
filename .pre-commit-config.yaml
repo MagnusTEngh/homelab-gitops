@@ -7,13 +7,6 @@ repos:
       - id: trailing-whitespace    # Removes trailing whitespace
       - id: mixed-line-ending      # Normalizes line endings to LF
 
-  # YAML linting
-  - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.31.0
-    hooks:
-      - id: yamllint
-        args: [-c=.yamllint.yaml]
-
   # Local validation hooks
   - repo: local
     hooks:
