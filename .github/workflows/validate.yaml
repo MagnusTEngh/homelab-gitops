@@ -38,8 +38,23 @@ jobs:
       - name: Build Cilium manifests
         run: kubectl kustomize ./infrastructure/cilium
 
+      - name: Build Cert-Manager manifests
+        run: kubectl kustomize ./infrastructure/cert-manager
+
+      - name: Build Gateway API manifests
+        run: kubectl kustomize ./infrastructure/gateway-api
+
       - name: Build Longhorn manifests
         run: kubectl kustomize ./infrastructure/longhorn
+
+      - name: Build Local Path Provisioner manifests
+        run: kubectl kustomize ./infrastructure/local-path-provisioner
+
+      - name: Build Tailscale manifests
+        run: kubectl kustomize ./infrastructure/tailscale
+
+      - name: Build Jottacloud Backup manifests
+        run: kubectl kustomize ./infrastructure/jottacloud-backup
 
       - name: Build Gateway Test manifests
         run: kubectl kustomize ./apps/gateway-test
@@ -73,9 +88,111 @@ jobs:
         run: |
           curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
 
-      - name: Validate manifests with kubeconform
+      - name: Validate Flux manifests with kubeconform
         run: |
-          kubeconform -strict -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository ./clusters/yggdrasil
+          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Cilium manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Cert-Manager manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/cert-manager | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Gateway API manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/{{.Version}}/config/crd/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Longhorn manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/longhorn | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Local Path Provisioner manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/local-path-provisioner | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Tailscale manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/tailscale | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Jottacloud Backup manifests with kubeconform
+        run: |
+          kubectl kustomize ./infrastructure/jottacloud-backup | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+      - name: Validate Gateway Test manifests with kubeconform
+        run: |
+          kubectl kustomize ./apps/gateway-test | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/{{.Version}}/config/crd/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+
+  # Level 2: Shell Script Validation
+  shellcheck:
+    name: Shell Script Lint
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Setup ShellCheck
+        uses: ludeeus/action-shellcheck@3a3a2453933411c4e3176433993c6454849a339d # 2.0.0
+
+      - name: Lint shell scripts in talos
+        run: |
+          find talos/ -name "*.sh" -type f -exec shellcheck {} \;
+
+      - name: Lint shell scripts in scripts
+        run: |
+          find scripts/ -name "*.sh" -type f -exec shellcheck {} \; 2>/dev/null || true
+
+  # Level 3: Secret Validation
+  secret-validation:
+    name: Secret Validation
+    needs: kustomize-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Check for Secret with data or stringData
+        run: |
+          set -euo pipefail
+          FAILED=0
+          while IFS= read -r -d '' file; do
+            if grep -q "kind: Secret" "$file"; then
+              if grep -A 20 "kind: Secret" "$file" | grep -qE "^[[:space:]]+(data:|stringData:)"; then
+                echo "ERROR: Found kind: Secret with data/stringData in $file"
+                FAILED=1
+              fi
+            fi
+          done < <(find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | sort -u | tr '\n' '\0')
+          exit $FAILED
+
+  # Level 3: Age Key Pattern Check
+  age-pattern-check:
+    name: Age Key Pattern Check
+    needs: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+
+      - name: Check for age encrypted patterns
+        run: |
+          set -euo pipefail
+          FAILED=0
+          if find . -name "*.age" -type f 2>/dev/null | grep -q .; then
+            echo "ERROR: Found .age files in repository"
+            FAILED=1
+          fi
+          while IFS= read -r -d '' file; do
+            if grep -qE "(sops|\\.age|age\\.enc|age-encrypted)" "$file" 2>/dev/null; then
+              if ! grep -q "image.toolkit.fluxcd.io" "$file"; then
+                echo "ERROR: Found age key pattern in $file"
+                FAILED=1
+              fi
+            fi
+          done < <(find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | sort -u | tr '\n' '\0')
+          exit $FAILED
 
   pluto:
     name: Deprecation Check (Pluto)
@@ -109,6 +226,11 @@ jobs:
         run: |
           kubectl kustomize ./clusters/yggdrasil/flux-system > /tmp/flux-manifests.yaml
           kubectl kustomize ./infrastructure/cilium > /tmp/cilium-manifests.yaml
+          kubectl kustomize ./infrastructure/cert-manager > /tmp/cert-manager-manifests.yaml
+          kubectl kustomize ./infrastructure/gateway-api > /tmp/gateway-api-manifests.yaml
           kubectl kustomize ./infrastructure/longhorn > /tmp/longhorn-manifests.yaml
+          kubectl kustomize ./infrastructure/local-path-provisioner > /tmp/local-path-provisioner-manifests.yaml
+          kubectl kustomize ./infrastructure/tailscale > /tmp/tailscale-manifests.yaml
+          kubectl kustomize ./infrastructure/jottacloud-backup > /tmp/jottacloud-backup-manifests.yaml
           kubectl kustomize ./apps/gateway-test > /tmp/gateway-test-manifests.yaml
           echo "Manifests built successfully - syntax validation passed"
