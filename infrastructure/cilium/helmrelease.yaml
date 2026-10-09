@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: cilium
-      version: "1.20.1"
+      version: "1.20.2"
       sourceRef:
         kind: HelmRepository
         name: cilium
@@ -20,8 +20,14 @@ spec:
 
     gatewayAPI:
       enabled: true
-      hostNetwork:
-        enabled: true
+
+    # Enable L2 announcements for LoadBalancer IPs
+    l2announcements:
+      enabled: true
+
+    # Enable externalIPs for Services
+    externalIPs:
+      enabled: true
 
     ipam:
       mode: kubernetes
