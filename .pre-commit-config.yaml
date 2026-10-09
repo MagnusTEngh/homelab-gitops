@@ -13,3 +13,35 @@ repos:
     hooks:
       - id: yamllint
         args: [-c=.yamllint.yaml]
+
+  # Local validation hooks
+  - repo: local
+    hooks:
+      - id: validate-yaml
+        name: yamllint
+        entry: scripts/validate.sh yaml
+        language: system
+        types: [yaml]
+        pass_filenames: false
+
+      - id: validate-shell
+        name: shellcheck
+        entry: scripts/validate.sh shell
+        language: system
+        types: [shell]
+        pass_filenames: false
+
+      - id: validate-secrets
+        name: secrets + key material
+        entry: scripts/validate.sh secrets age
+        language: system
+        files: \.(ya?ml)$|\.sh$
+        pass_filenames: false
+
+      - id: validate-manifests
+        name: kustomize build + kubeconform + pluto
+        entry: scripts/validate.sh build schema pluto
+        language: system
+        files: ^(clusters|infrastructure|apps)/
+        pass_filenames: false
+        stages: [pre-push]

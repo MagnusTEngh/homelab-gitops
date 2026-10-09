@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shellcheck disable=SC2034
-
 # ==============================================================================
 # Configuration
 # ==============================================================================
@@ -39,82 +37,68 @@ wait_for_talos() {
 
     echo
     echo "    Talos API is available."
-
 }
 
 wait_for_talos_version() {
     echo
     echo "==> Waiting for Talos ${TALOS_VERSION}..."
 
-    until talosctl version --nodes "$NODE_IP" 2>/dev/null |\n        grep -q "Tag:[[:space:]]*${TALOS_VERSION}"; do
-
+    until talosctl version --nodes "$NODE_IP" 2>/dev/null | grep -q "Tag:[[:space:]]*${TALOS_VERSION}"; do
         printf '.'
         sleep 5
     done
 
     echo
     echo "    Talos ${TALOS_VERSION} is running."
-
 }
 
 wait_for_kubernetes_api() {
     echo
     echo "==> Waiting for Kubernetes API..."
 
-    until kubectl \\
-        --kubeconfig "$KUBECONFIG" \\
-        get --raw=/readyz >/dev/null 2>&1; do
-
+    until kubectl --kubeconfig "$KUBECONFIG" get --raw=/readyz >/dev/null 2>&1; do
         printf '.'
         sleep 5
     done
 
     echo
     echo "    Kubernetes API is ready."
-
 }
 
 # ==============================================================================
 # Render Talos machine configuration
 # ==============================================================================
 
-    echo
-    echo "==> Rendering Talos machine configuration..."
+echo "==> Rendering Talos machine configuration..."
 
-    talosctl machineconfig patch controlplane.yaml \\
-        --patch "@nodes/cp_${NODE_IP}.yaml" \\
-        --patch @patches/remove_cni.yaml \\
-        --patch @patches/wakeonlan.yaml \\
-        --patch @patches/workload-on-controlplane.yaml \\
-        --patch @patches/longhorn.yaml \\
-        --output "$RENDERED_CONFIG"
+talosctl machineconfig patch controlplane.yaml \
+    --patch "@nodes/cp_${NODE_IP}.yaml" \
+    --patch @patches/remove_cni.yaml \
+    --patch @patches/wakeonlan.yaml \
+    --patch @patches/workload-on-controlplane.yaml \
+    --patch @patches/longhorn.yaml \
+    --output "$RENDERED_CONFIG"
 
-    echo " Rendered: $RENDERED_CONFIG"
+echo " Rendered: $RENDERED_CONFIG"
 
 # ==============================================================================
 # Initial Talos configuration
 # The machine must currently be booted into Talos maintenance mode.
 # ==============================================================================
 
-    echo
-    echo "==> Applying initial Talos configuration..."
+echo "==> Applying initial Talos configuration..."
 
-    talosctl apply-config \\
-        --insecure \\
-        --nodes "$NODE_IP" \\
-        --file "$RENDERED_CONFIG"
+talosctl apply-config --insecure --nodes "$NODE_IP" --file "$RENDERED_CONFIG"
 
 # ==============================================================================
 # Configure talosctl
 # ==============================================================================
 
-    echo
-    echo "==> Configuring talosctl..."
+echo "==> Configuring talosctl..."
 
-    export TALOSCONFIG
-
-    talosctl config endpoint "$NODE_IP"
-    talosctl config node "$NODE_IP"
+export TALOSCONFIG
+talosctl config endpoint "$NODE_IP"
+talosctl config node "$NODE_IP"
 
 # ==============================================================================
 # Wait for Talos to reboot after apply-config
@@ -126,15 +110,11 @@ wait_for_talos
 # Upgrade Talos
 # ==============================================================================
 
-    echo
-    echo "==> Upgrading Talos to ${TALOS_VERSION}..."
+echo "==> Upgrading Talos to ${TALOS_VERSION}..."
+echo " Installer:"
+echo " ${TALOS_INSTALLER}"
 
-    echo " Installer:"
-    echo " ${TALOS_INSTALLER}"
-
-    talosctl upgrade \\
-        --nodes "$NODE_IP" \\
-        --image "$TALOS_INSTALLER"
+talosctl upgrade --nodes "$NODE_IP" --image "$TALOS_INSTALLER"
 
 # ==============================================================================
 # Wait for Talos to reboot after upgrade
@@ -148,9 +128,8 @@ wait_for_talos
 
 wait_for_talos_version
 
-    echo
-    echo "==> Talos version:"
-    talosctl version --nodes "$NODE_IP"
+echo "==> Talos version:"
+talosctl version --nodes "$NODE_IP"
 
 # ==============================================================================
 # Bootstrap Kubernetes
@@ -158,22 +137,19 @@ wait_for_talos_version
 # this initializes the etcd cluster.
 # ==============================================================================
 
-    echo
-    echo "==> Bootstrapping Kubernetes..."
+echo "==> Bootstrapping Kubernetes..."
 
-    talosctl bootstrap \\
-        --nodes "$NODE_IP"
+talosctl bootstrap --nodes "$NODE_IP"
 
 # ==============================================================================
 # Generate kubeconfig
 # ==============================================================================
 
-    echo
-    echo "==> Generating kubeconfig..."
+echo "==> Generating kubeconfig..."
 
-    talosctl kubeconfig "$KUBECONFIG"
+talosctl kubeconfig "$KUBECONFIG"
 
-    export KUBECONFIG
+export KUBECONFIG
 
 # ==============================================================================
 # Wait for Kubernetes API
@@ -189,83 +165,67 @@ wait_for_kubernetes_api
 # Install Cilium
 # ==============================================================================
 
-    echo
-    echo "==> Adding Cilium Helm repository..."
+echo "==> Adding Cilium Helm repository..."
 
-    helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
+helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
+helm repo update
 
-    helm repo update
+# While single node
+echo "==> Installing Cilium ${CILIUM_VERSION}..."
 
-    # While single node
-    echo
-    echo "==> Installing Cilium ${CILIUM_VERSION}..."
-
-    helm upgrade --install \\
-        cilium \\
-        cilium/cilium \\
-        --version "$CILIUM_VERSION" \\
-        --namespace kube-system \\
-        --set operator.replicas=1 \\
-        --set ipam.mode=kubernetes \\
-        --set kubeProxyReplacement=true \\
-        --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \\
-        --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \\
-        --set cgroup.autoMount.enabled=false \\
-        --set cgroup.hostRoot=/sys/fs/cgroup \\
-        --set k8sServiceHost=localhost \\
-        --set k8sServicePort=7445
+helm upgrade --install cilium cilium/cilium \
+    --version "$CILIUM_VERSION" \
+    --namespace kube-system \
+    --set operator.replicas=1 \
+    --set ipam.mode=kubernetes \
+    --set kubeProxyReplacement=true \
+    --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+    --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
+    --set cgroup.autoMount.enabled=false \
+    --set cgroup.hostRoot=/sys/fs/cgroup \
+    --set k8sServiceHost=localhost \
+    --set k8sServicePort=7445
 
 # ==============================================================================
 # Wait for Cilium
 # ==============================================================================
 
-    echo
-    echo "==> Waiting for Cilium daemonset..."
+echo "==> Waiting for Cilium daemonset..."
 
-    kubectl \\
-        --namespace kube-system \\
-        rollout status daemonset/cilium \\
-        --timeout=10m
+kubectl --namespace kube-system rollout status daemonset/cilium --timeout=10m
 
 # ==============================================================================
 # Wait for Kubernetes node to become Ready
 # ==============================================================================
 
-    echo
-    echo "==> Waiting for Kubernetes node to become Ready..."
+echo "==> Waiting for Kubernetes node to become Ready..."
 
-    until kubectl get nodes \\
-        --no-headers 2>/dev/null |\n        awk '$2 == "Ready" { found=1 } END { exit !found }'; do
-        printf '.'
-        sleep 5
-    done
+until kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" { found=1 } END { exit !found }'; do
+    printf '.'
+    sleep 5
+done
 
-    echo
-    echo "    Kubernetes node is Ready."
-
+echo "    Kubernetes node is Ready."
 
 # ==============================================================================
 # Final status
-#==============================================================================
+# ==============================================================================
 
-    echo
-    echo "=============================================================================="
-    echo " Bootstrap complete"
-    echo "=============================================================================="
+echo
+echo "=============================================================================="
+echo " Bootstrap complete"
+echo "=============================================================================="
 
-    echo
-    echo "==> Talos:"
-    talosctl version --nodes "$NODE_IP"
+echo "==> Talos:"
+talosctl version --nodes "$NODE_IP"
 
-    echo
-    echo "==> Kubernetes:"
-    kubectl get nodes -o wide
+echo "==> Kubernetes:"
+kubectl get nodes -o wide
 
-    echo
-    echo "==> Cilium:"
-    kubectl -n kube-system get pods -l k8s-app=cilium
+echo "==> Cilium:"
+kubectl -n kube-system get pods -l k8s-app=cilium
 
-    echo
-    echo "=============================================================================="
-    echo " Done"
-    echo "=============================================================================="
+echo
+echo "=============================================================================="
+echo " Done"
+echo "=============================================================================="

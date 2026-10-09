@@ -1,238 +1,52 @@
----
-name: Validate
+name: validate
 
 on:
   pull_request:
-    branches:
-    - main
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # Level 1: Syntax & Format
-  yaml-lint:
-    name: YAML Lint
+  validate:
+    name: validate (${{ matrix.check }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [yaml, build, schema, secrets, age, shell, pluto]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
-      - name: Lint YAML
-        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # 3.1.1
-        with:
-          config_file: .yamllint.yaml
-
-  # Level 2: Manifest Structure
-  kustomize-build:
-    name: Kustomize Build
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Build Flux manifests
-        run: kubectl kustomize ./clusters/yggdrasil/flux-system
-
-      - name: Build Cilium manifests
-        run: kubectl kustomize ./infrastructure/cilium
-
-      - name: Build Cert-Manager manifests
-        run: kubectl kustomize ./infrastructure/cert-manager
-
-      - name: Build Gateway API manifests
-        run: kubectl kustomize ./infrastructure/gateway-api
-
-      - name: Build Longhorn manifests
-        run: kubectl kustomize ./infrastructure/longhorn
-
-      - name: Build Local Path Provisioner manifests
-        run: kubectl kustomize ./infrastructure/local-path-provisioner
-
-      - name: Build Tailscale manifests
-        run: kubectl kustomize ./infrastructure/tailscale
-
-      - name: Build Jottacloud Backup manifests
-        run: kubectl kustomize ./infrastructure/jottacloud-backup
-
-      - name: Build Gateway Test manifests
-        run: kubectl kustomize ./apps/gateway-test
-
-  helm-lint:
-    name: Helm Lint
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Helm
-        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3
-
-      - name: Lint Helm charts
+      - name: Install yq
+        if: matrix.check == 'secrets' || matrix.check == 'schema'
         run: |
-          helm lint ./infrastructure/cilium || true
-          helm lint ./infrastructure/cert-manager || true
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
 
-  # Level 2: Schema Validation
-  kubeconform:
-    name: Schema Validation (kubeconform)
-    needs: kustomize-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup kubeconform
+      - name: Install kubeconform
+        if: matrix.check == 'schema'
         run: |
           curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin
 
-      - name: Validate Flux manifests with kubeconform
+      - name: Install pluto
+        if: matrix.check == 'pluto'
         run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,GitRepositoryRef
+          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
 
-      - name: Validate Cilium manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/cilium | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,CiliumLoadBalancerIPPool,CiliumL2AnnouncementPolicy
-
-      - name: Validate Cert-Manager manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/cert-manager | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-      - name: Validate Gateway API manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,GatewayClass
-
-      - name: Validate Longhorn manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/longhorn | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-      - name: Validate Local Path Provisioner manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/local-path-provisioner | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-      - name: Validate Tailscale manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/tailscale | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-      - name: Validate Jottacloud Backup manifests with kubeconform
-        run: |
-          kubectl kustomize ./infrastructure/jottacloud-backup | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-      - name: Validate Gateway Test manifests with kubeconform
-        run: |
-          kubectl kustomize ./apps/gateway-test | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
-
-  # Level 2: Shell Script Validation
-  shellcheck:
-    name: Shell Script Lint
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Install ShellCheck
+      - name: Install shellcheck
+        if: matrix.check == 'shell'
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
 
-      - name: Lint shell scripts in talos
-        run: |
-          find talos/ -name "*.sh" -type f -exec shellcheck {} \;
-
-      - name: Lint shell scripts in scripts
-        run: |
-          find scripts/ -name "*.sh" -type f -exec shellcheck {} \; 2>/dev/null || true
-
-  # Level 3: Secret Validation
-  secret-validation:
-    name: Secret Validation
-    needs: kustomize-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Check for Secret with data or stringData
-        run: |
-          set -euo pipefail
-          FAILED=0
-          while IFS= read -r -d '' file; do
-            if grep -q "kind: Secret" "$file"; then
-              if grep -A 20 "kind: Secret" "$file" | grep -qE "^[[:space:]]+(data:|stringData:)"; then
-                echo "ERROR: Found kind: Secret with data/stringData in $file"
-                FAILED=1
-              fi
-            fi
-          done < <(find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | sort -u | tr '\n' '\0')
-          exit $FAILED
-
-  # Level 3: Age Key Pattern Check
-  age-pattern-check:
-    name: Age Key Pattern Check
-    needs: yaml-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Check for age encrypted patterns
-        run: |
-          set -euo pipefail
-          FAILED=0
-          if find . -name "*.age" -type f 2>/dev/null | grep -q .; then
-            echo "ERROR: Found .age files in repository"
-            FAILED=1
-          fi
-          while IFS= read -r -d '' file; do
-            if grep -qE "(sops|\\.age|age\\.enc|age-encrypted)" "$file" 2>/dev/null; then
-              if ! grep -q "image.toolkit.fluxcd.io" "$file"; then
-                echo "ERROR: Found age key pattern in $file"
-                FAILED=1
-              fi
-            fi
-          done < <(find . -name "*.yaml" -o -name "*.yml" | grep -v ".git" | sort -u | tr '\n' '\0')
-          exit $FAILED
-
-  pluto:
-    name: Deprecation Check (Pluto)
-    needs: kustomize-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup Pluto
-        run: |
-          curl -sL https://github.com/fairwindsops/pluto/releases/download/v5.11.0/pluto_5.11.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
-
-      - name: Check for deprecated API versions
-        run: |
-          pluto detect-files -d ./clusters/yggdrasil -o json --ignore-deprecations=false --ignore-removals=false
-
-  # Level 3: Semantic Validation
-  kube-validate:
-    name: Kubernetes Manifest Validation
-    needs: [kustomize-build, helm-lint, kubeconform, pluto]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@901a10e89ea615cf61f57ac05cecdf23e7de06d8 # v3
-
-      - name: Validate Flux manifests with kubeval
-        run: |
-          kubectl kustomize ./clusters/yggdrasil/flux-system > /tmp/flux-manifests.yaml
-          kubectl kustomize ./infrastructure/cilium > /tmp/cilium-manifests.yaml
-          kubectl kustomize ./infrastructure/cert-manager > /tmp/cert-manager-manifests.yaml
-          kubectl kustomize ./infrastructure/gateway-api > /tmp/gateway-api-manifests.yaml
-          kubectl kustomize ./infrastructure/longhorn > /tmp/longhorn-manifests.yaml
-          kubectl kustomize ./infrastructure/local-path-provisioner > /tmp/local-path-provisioner-manifests.yaml
-          kubectl kustomize ./infrastructure/tailscale > /tmp/tailscale-manifests.yaml
-          kubectl kustomize ./infrastructure/jottacloud-backup > /tmp/jottacloud-backup-manifests.yaml
-          kubectl kustomize ./apps/gateway-test > /tmp/gateway-test-manifests.yaml
-          echo "Manifests built successfully - syntax validation passed"
+      - name: Run check
+        run: ./scripts/validate.sh ${{ matrix.check }}

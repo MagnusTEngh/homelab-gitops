@@ -1,165 +1,172 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-# Local validation script that mirrors CI checks
-# Usage: ./scripts/validate.sh
+# Validation shared by CI, pre-commit and the nix devShell.
+
+# Usage: scripts/validate.sh [check ...]
+
+#   checks: yaml build schema secrets age shell pluto   (default: all)
+
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "========================================"
-echo "Local Validation Script"
-echo "========================================"
+ALL_CHECKS=(yaml build schema secrets age shell pluto)
+MANIFEST_ROOTS=(clusters infrastructure apps)
 
+# TODO: set to the Kubernetes version Talos runs.
+K8S_VERSION="${K8S_VERSION:-1.34.0}"
+CRD_CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+
+BUILT=0
 FAILED=0
 
-# Level 1: Syntax & Format
-echo ""
-echo "=== YAML Lint ==="
-if ! yamllint -c .yamllint.yaml .; then
-    echo "FAILED: yamllint failed"
-    FAILED=1
-fi
+log() { printf '\n=== %s ===\n' "$*"; }
 
-# Level 2: Manifest Structure
-echo ""
-echo "=== Kustomize Build ==="
-KUSTOMIZE_PATHS=(
-    "./clusters/yggdrasil/flux-system"
-    "./infrastructure/cilium"
-    "./infrastructure/cert-manager"
-    "./infrastructure/gateway-api"
-    "./infrastructure/longhorn"
-    "./infrastructure/local-path-provisioner"
-    "./infrastructure/tailscale"
-    "./infrastructure/jottacloud-backup"
-    "./apps/gateway-test"
-)
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  FAILED=1
+}
 
-for path in "${KUSTOMIZE_PATHS[@]}"; do
-    echo "Building: $path"
-    if ! kubectl kustomize "$path" > /dev/null 2>&1; then
-        echo "FAILED: kustomize build failed for $path"
-        FAILED=1
+need() {
+  local tool
+  for tool in "$@"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      fail "missing tool: $tool"
+      return 1
     fi
-done
+  done
+}
 
-# Level 2: Helm Lint
-echo ""
-echo "=== Helm Lint ==="
-HELM_PATHS=(
-    "./infrastructure/cilium"
-    "./infrastructure/cert-manager"
-)
+# Directories with a kustomization.yaml that build standalone.
+kustomize_dirs() {
+  local f
+  while IFS= read -r -d '' f; do
+    grep -qE '^kind:[[:space:]]*Component' "$f" && continue
+    dirname "$f"
+  done < <(find "${MANIFEST_ROOTS[@]}" -name kustomization.yaml -type f -print0 | sort -z)
+}
 
-for path in "${HELM_PATHS[@]}"; do
-    echo "Linting: $path"
-    if ! helm lint "$path" 2>/dev/null; then
-        echo "FAILED: helm lint failed for $path"
-        FAILED=1
+# Build every kustomize dir once into $BUILD_DIR; later checks reuse the output.
+ensure_built() {
+  [ "$BUILT" -eq 1 ] && return 0
+  BUILT=1
+  need kubectl || return 0
+
+  local dir out
+  while IFS= read -r dir; do
+    out="$BUILD_DIR/${dir//\//__}.yaml"
+    if ! kubectl kustomize "$dir" >"$out" 2>"$out.err"; then
+      fail "kustomize build: $dir"
+      sed 's/^/  /' "$out.err" >&2
+      rm -f "$out"
     fi
-done
+  done < <(kustomize_dirs)
+}
 
-# Level 2: Schema Validation with kubeconform
-echo ""
-echo "=== Kubeconform (Strict with Flux and Gateway API CRD schemas) ==="
+check_yaml() {
+  log "yamllint"
+  need yamllint || return 0
+  yamllint -c .yamllint.yaml . || fail "yamllint"
+}
 
-# Download Flux CRD schemas if not present
-FLUX_CRD_URL="https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/crds/bases.yaml"
-GATEWAY_API_CRD_URL="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.1.0/config/crd/gateway-api-crds.yaml"
+check_build() {
+  log "kustomize build"
+  ensure_built
+  echo "built $(find "$BUILD_DIR" -name '*.yaml' -type f | wc -l | tr -d ' ') kustomizations"
+}
 
-# Get all kustomize outputs
-for path in "${KUSTOMIZE_PATHS[@]}"; do
-    echo "Validating: $path"
-    kubectl kustomize "$path" | kubeconform -strict -schema-location default -schema-location "https://raw.githubusercontent.com/fluxcd/flux2/{{.Version}}/manifests/crds/" -schema-location "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/{{.Version}}/config/crd/" -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository || FAILED=1
-done
+check_schema() {
+  log "kubeconform"
+  need kubeconform || return 0
+  ensure_built
 
-# Level 2: Shellcheck
-echo ""
-echo "=== Shellcheck ==="
-SHELL_SCRIPTS=()
+  find "$BUILD_DIR" -name '*.yaml' -type f -print0 |\n    xargs -0 -r kubeconform -strict -summary -ignore-missing-schemas \
+      -kubernetes-version "$K8S_VERSION" \
+      -schema-location default \
+      -schema-location "$CRD_CATALOG" || fail "kubeconform"
+}
 
-# Find shell scripts in talos/
-if [ -d "talos" ]; then
-    while IFS= read -r -d '' script; do
-        SHELL_SCRIPTS+=("$script")
-    done < <(find talos/ -name "*.sh" -type f -print0)
-fi
+check_secrets() {
+  log "No Secret with data/stringData"
+  need yq || return 0
+  ensure_built
 
-# Find shell scripts in scripts/
-if [ -d "scripts" ]; then
-    while IFS= read -r -d '' script; do
-        SHELL_SCRIPTS+=("$script")
-    done < <(find scripts/ -name "*.sh" -type f -print0)
-fi
+  local files=() f hits
+  while IFS= read -r -d '' f; do
+    files+=("$f")
+  done < <({
+    git ls-files -z -- '*.yaml' '*.yml'
+    find "$BUILD_DIR" -name '*.yaml' -type f -print0
+  })
 
-if [ ${#SHELL_SCRIPTS[@]} -gt 0 ]; then
-    for script in "${SHELL_SCRIPTS[@]}"; do
-        echo "Checking: $script"
-        if ! shellcheck "$script"; then
-            echo "FAILED: shellcheck failed for $script"
-            FAILED=1
-        fi
-    done
-else
-    echo "No shell scripts found in talos/ or scripts/"
-fi
+  for f in "${files[@]}"; do
+    hits="$(yq eval-all \
+      'select(.kind == "Secret" and (.data != null or .stringData != null)) | .metadata.name' \
+      "$f")" || {
+      fail "yq could not parse $f"
+      continue
+    }
+    [ -z "$hits" ] || fail "Secret with data/stringData in $f: $hits"
+  done
+}
 
-# Level 3: Secret Validation
-echo ""
-echo "=== Secret Validation (no data/stringData in kind: Secret) ==="
+check_age() {
+  log "No key material in repo"
+  local hits
 
-# Check for kind: Secret with data or stringData
-SECRET_VIOLATIONS=$(grep -rn "kind: Secret" --include="*.yaml" --include="*.yml" . | while read -r line; do
-    file="$(echo "$line" | cut -d: -f1)"
-    # Check if the same file has data: or stringData: after kind: Secret
-    if grep -A 20 "kind: Secret" "$file" | grep -qE "^\s+(data:|stringData:)"; then
-        echo "$file"
-    fi
-done)
+  hits="$(git grep -nEI \
+    -e 'AGE-SECRET-KEY-1[A-Z0-9]{58}' \
+    -e '-----BEGIN ([A-Z]+ )?PRIVATE KEY-----' || true)"
+  [ -z "$hits" ] || fail "key material found:"${'\n'}"$hits"
 
-if [ -n "$SECRET_VIOLATIONS" ]; then
-    echo "FAILED: Found kind: Secret manifests with data/stringData:"
-    echo "$SECRET_VIOLATIONS"
-    FAILED=1
-else
-    echo "No kind: Secret manifests with data/stringData found"
-fi
+  hits="$(git ls-files |\n    grep -Ei '(^|/)(talosconfig|kubeconfig|secrets\.ya?ml|keys\.txt)$|\.(age|agekey)$' || true)"
+  [ -z "$hits" ] || fail "secret-looking files tracked:"${'\n'}"$hits"
+}
 
-# Level 3: Age Key Pattern Check
-echo ""
-echo "=== Age Key Pattern Check ==="
+check_shell() {
+  log "shellcheck"
+  need shellcheck || return 0
+  git ls-files -z '*.sh' | xargs -0 -r shellcheck || fail "shellcheck"
+}
 
-# Check for .age files or age-encrypted content references
-AGE_VIOLATIONS=$(grep -rnE "(\.age|sops|age\.enc|age-encrypted)" --include="*.yaml" --include="*.yml" . | grep -v "^Binary" | grep -v "image.toolkit.fluxcd.io" | grep -v "# " || true)
+check_pluto() {
+  log "pluto (deprecated/removed APIs)"
+  need pluto || return 0
+  ensure_built
 
-if [ -n "$AGE_VIOLATIONS" ]; then
-    # Filter out false positives - we're looking for actual age-encrypted secret patterns
-    REAL_VIOLATIONS=$(echo "$AGE_VIOLATIONS" | grep -v "image\.toolkit\.fluxcd\.io" | grep -v "# " || true)
-    if [ -n "$REAL_VIOLATIONS" ]; then
-        echo "FAILED: Found age key patterns:"
-        echo "$REAL_VIOLATIONS"
-        FAILED=1
-    fi
-else
-    echo "No age key patterns found"
-fi
+  pluto detect-files -d "$BUILD_DIR" -o wide \
+    --target-versions "k8s=v${K8S_VERSION}" || fail "pluto"
+}
 
-# Level 3: Pluto Deprecation Check
-echo ""
-echo "=== Pluto Deprecation Check ==="
-if command -v pluto &>/dev/null; then
-    pluto detect-files -d ./clusters/yggdrasil -o json --ignore-deprecations=false --ignore-removals=false || FAILED=1
-else
-    echo "pluto not installed, skipping"
-fi
+main() {
+  local checks=("$@") c
 
-echo ""
-echo "========================================"
-if [ $FAILED -eq 0 ]; then
-    echo "All validation checks passed!"
-    exit 0
-else
-    echo "Some validation checks FAILED!"
+  if [ "${#checks[@]}" -eq 0 ] || [ "${checks[0]}" = "all" ]; then
+    checks=("${ALL_CHECKS[@]}")
+  fi
+
+  for c in "${checks[@]}"; do
+    case "$c" in
+      yaml | build | schema | secrets | age | shell | pluto) "check_$c" ;;
+      *)
+        echo "unknown check: $c (valid: ${ALL_CHECKS[*]} all)" >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo >&2
+    echo "Validation FAILED" >&2
     exit 1
-fi
+  fi
+
+  echo
+  echo "Validation passed"
+}
+
+main "$@"
