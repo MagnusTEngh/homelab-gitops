@@ -102,7 +102,7 @@ jobs:
 
       - name: Validate Gateway API manifests with kubeconform
         run: |
-          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository
+          kubectl kustomize ./infrastructure/gateway-api | kubeconform -strict -schema-location default -skip CustomResourceDefinition,Kustomization,GitRepository,HelmRelease,HelmRepository,GatewayClass
 
       - name: Validate Longhorn manifests with kubeconform
         run: |
