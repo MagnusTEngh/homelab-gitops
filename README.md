@@ -51,3 +51,29 @@ The flake includes vscode, nvim and the essential tools for Talos and Kubernetes
 ### Backups in Jottacloud
 
 All backup solutions should end up in Jottacloud at the end of the day, and there should be a testable pipeline for restoring the cluster state from that backup.
+
+### success conditions 
+
+#### Tests
+
+The following should be testable using scripts. Each script should test only one condition and return a boolean that indicates success or not.
+
+The tests are run as a Kubernetes job managed by flux.
+
+##### Access
+
+Pages reachable for specific groups with just plain text.
+
+- admin: Hello admin!
+- Family: Hello family!
+- Friends: Hello friend!
+- Guests: Hello guest!
+
+Each role should have its own script for testing access.
+
+##### Storage
+
+For each storage option:
+
+- A pod with a text file containing "Hello World" that is backed up to Jottacloud 
+- Automated jobs that tests the backup and recovery methods
