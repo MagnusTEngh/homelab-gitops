@@ -58,6 +58,8 @@ All backup solutions should end up in Jottacloud at the end of the day, and ther
 
 The following should be testable using scripts. Each script should test only one condition and return a boolean that indicates success or not.
 
+The tests are run as a Kubernetes job managed by flux.
+
 ##### Access
 
 Pages reachable for specific groups with just plain text.
