@@ -51,3 +51,18 @@ The flake includes vscode, nvim and the essential tools for Talos and Kubernetes
 ### Backups in Jottacloud
 
 All backup solutions should end up in Jottacloud at the end of the day, and there should be a testable pipeline for restoring the cluster state from that backup.
+
+### success conditions 
+
+#### access
+
+Pages reachable for specific groups with just plain text.
+
+- admin: hello admin!
+- Family: Hello family!
+- Friends: Hello friend!
+- Guests: Hello guest!
+
+For each storage option:
+- A pod with a text file containing "Hello World" that is backed up to Jottacloud 
+- Automated jobs that tests the backup and recovery methods
