@@ -66,8 +66,6 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 
 - Verify your own work offline only (kubectl kustomize, yamllint, kubeconform, helm template, talosctl validate, shellcheck).
 
-- Consider if an automated health check is valuable to add. If it is valuable, summarize it briefly in SUGGESTIONS.md and explain why it would be a good idea.
-
 - Finish every task with: offline check results, then a "Human steps" list with exact commands and what a pass looks like. Do not start another step.
 
 ## Making changes
@@ -81,3 +79,6 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 7. Don't invent versions, IPs or values. Read them from the repo.
 8. Always create a pull request when making changes. If you modify an existing PR make sure that you explain yourself in the commit message. Never use destructive git actions such as force push.
 
+## Finally
+
+Consider if an automated health check is valuable to add. If it is valuable, summarize it briefly in SUGGESTIONS.md and explain why it would be a good idea.
