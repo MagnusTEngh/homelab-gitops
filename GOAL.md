@@ -1,5 +1,9 @@
 This is a description of the desired state of the cluster as a whole.
 
+## Services
+
+Adding a new service should be simple. It should be possible to add an app in a Docker container easily.
+
 ## Roles and Access
 
 Access should follow least privilege. Roles describe the intended level of access regardless of how that access is implemented.
@@ -39,12 +43,12 @@ The intended access model is:
 
 The cluster should provide the following storage types.
 
-| Storage type | Minimum capacity | Desired distribution | Replicas |
+| Storage type | Minimum capacity | Desired distribution | Replicas | Backup|
 |---|---:|---:|---:|
-| S3 (Garage) | 150 GB | 30% | 1 |
-| Longhorn | 150 GB | 30% | 1 |
-| local-path-provisioner| 150 GB | 30% | 1 |
-| Talos ephemeral | 50 GB | 10% | 1|
+| S3 (Garage) | 150 GB | 30% | 1 | Jottacloud|
+| Longhorn | 150 GB | 30% | 1 |None |
+| local-path-provisioner| 150 GB | 30% | 1 | Jottacloud|
+| Talos ephemeral | 50 GB | 10% | 1|None |
 
 The desired distribution is a target, not a hard requirement.
 Minimum capacities are hard requirements.
