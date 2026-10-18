@@ -2,7 +2,7 @@
 
 Read these first, in order:
 
-1. [README.md](README.md): goals for the project
+1. [GOAL.md](GOAL.md): goals for the project
 2. [setup.md](setup.md): how to bootstrap Talos, Cilium and Flux, and manual steps required (such as adding secrets)
 3. [verification.md](verification.md): how to check that the cluster is healthy
 4. [hardware.md](hardware.md): information about the available hardware.
@@ -13,7 +13,8 @@ If something is too broad or open for interpretation, suggest ways to improve yo
 
 ## Rules
 
-- Never directly edit the README.md, if something should be changed suggest through text only.
+- Never directly edit the GOAL.md, if something should be changed suggest through text only.
+- If you encounter a non-blocking bug or issue outside your current task, make a note of it in KNOWN_ISSUES.md and refocus on your task.
 
 ## Context
 
