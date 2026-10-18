@@ -8,7 +8,7 @@ The cluster should provide the following storage types.
 |---|---:|---:|---:|
 | S3 (Garage) | 150 GB | 30% | 1 |
 | Longhorn | 150 GB | 30% | 1 |
-| Local | 150 GB | 30% | 1 |
+| local-path-provisioner| 150 GB | 30% | 1 |
 | Talos ephemeral | 50 GB | 10% | 1|
 
 The desired distribution is a target, not a hard requirement.
